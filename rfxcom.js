@@ -18,6 +18,11 @@ module.exports = function (RED) {
     "use strict";
     var rfxcom = require("rfxcom");
 
+// Set the rfxcom debug option from the environment variable
+    var debugOption = {};
+    if (process.env.hasOwnProperty("RED_DEBUG") && process.env.RED_DEBUG.indexOf("rfxcom") >= 0) {
+        debugOption = {debug: true};
+    }
 // The config node holding the (serial) port device path for one or more rfxcom family nodes
     function RfxtrxPortNode(n) {
         RED.nodes.createNode(this, n);
@@ -49,7 +54,7 @@ module.exports = function (RED) {
                 // the pseudo-serialport, e.g. '/dev/tty.usb-123456'
                 var rfxtrx;
                 if (!pool[port]) {
-                    rfxtrx = new rfxcom.RfxCom(port, options || {});
+                    rfxtrx = new rfxcom.RfxCom(port, options || debugOption);
                     rfxtrx.transmitters = {};
                     rfxtrx.on("connecting", function () {
                         node.log("connecting to " + port);
@@ -249,7 +254,7 @@ module.exports = function (RED) {
 
         var node = this;
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port, {debug: true});
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
                 node.status({fill:"red",shape:"ring",text:"disconnected"});
                 node.on("close", function () {
@@ -526,7 +531,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port, {debug: true});
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
                 node.status({fill:"red",shape:"ring",text:"disconnected"});
                 node.on("close", function () {
@@ -653,7 +658,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port, {debug: true});
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
                 node.status({fill:"red",shape:"ring",text:"disconnected"});
                 node.on("close", function () {
@@ -781,7 +786,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port, {debug: true});
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
                 node.status({fill:"red",shape:"ring",text:"disconnected"});
                 node.on("close", function () {
