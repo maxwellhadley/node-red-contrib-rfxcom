@@ -98,7 +98,7 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"all", required:true },
-            topic: { value:"", validate:function(t) {
+            topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.length > 0
                 }
             }
@@ -107,16 +107,16 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
         inputs:0,
         outputs:1,
         icon: "rfxcom.png",
-        label: function() {
+        label: function () {
             var rfxtrxNode = RED.nodes.node(this.rfxtrx);
             return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-lights");
         },
-        labelStyle: function() {
+        labelStyle: function () {
             return this.name ? "node_label_italic" : "";
         },
-        oneditprepare: function() {
+        oneditprepare: function () {
             var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
+            topicSource.change(function () {
                 var id = topicSource.find("option:selected").val();
                 if (id == "single") {
                     $("#node-input-row-topic").show();
@@ -270,7 +270,7 @@ Not all devices support all commands. Less common commands include 'Toggle' and 
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"msg", required:true },
-            topic: { value:"", validate:function(t) {
+            topic: { value:"", validate:function (t) {
                     return this.topicSource == "msg" || t.length > 0
                 }
             }
@@ -391,3 +391,141 @@ is an array
     });
 </script>
 
+<!-- This is a receiver node for listening to messages from PT2262 devices -->
+<script type="text/x-red" data-template-name="rfx-PT2262-in">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="all">listen for commands sent to any address</option>
+          <option value="single">only listen for addresses matching a pattern</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="PT2262/address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-PT2262-in -->
+<script type="text/x-red" data-help-name="rfx-PT2262-in">
+<p>
+Listens for messages from PT2262 devices using an RFXtrx433 transceiver
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-PT2262-in', {
+        category: 'input',
+        defaults: {
+            name: { name:"" },
+            port: { type:"rfxtrx-port", required:true },
+            topicSource: { value:"all", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "all" || t.indexOf("PT2262/") === 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:0,
+        outputs:1,
+        icon: "rfxcom.png",
+        label: function () {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-PT2262");
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function () {
+                var id = topicSource.find("option:selected").val();
+                if (id == "single") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for devices using the PT2262/PT2272 chipset -->
+<script type="text/x-red" data-template-name="rfx-PT2262-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="PT2262/address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-PT2262-out -->
+<script type="text/x-red" data-help-name="rfx-PT2262-out">
+<p>
+Sends messages to PT2262/PT2272 devices using an RFXtrx433 transceiver
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-PT2262-out', {
+        category: 'output',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.indexOf("PT2262/") === 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-PT2262");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
