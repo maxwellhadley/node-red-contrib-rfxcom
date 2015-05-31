@@ -28,6 +28,11 @@ switches, and some types of doorbell.
 
 **rfx-lights-out** Sends messages to 'lighting' type devices including switches, dimmers, and some types of relay.
 
+**rfx-PT2262-in** Receives messages from devices using the PT2262 chipset. many no-name remote controls and alarm
+systems use these chips
+
+**rfx-PT2262-out** Sends messages to devices using the PT2262 family of chips.
+
 **rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors.
 
 **rfx-meter** Receives messages from wireless energy monitors such as OWL

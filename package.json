@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-rfxcom",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A set of node-red nodes to use the Rfxcom RFXtrx433 remote control transceiver",
   "author": {
     "name": "Maxwell Hadley",
@@ -18,10 +18,7 @@
   ],
   "node-red": {
     "nodes": {
-      "rfx-lights-in": "rfxcom.js",
-      "rfx-sensor": "rfxcom.js",
-      "rfx-meter": "rfxcom.js",
-      "rfx-lights-out": "rfxcom.js"
+      "rfx-lights-in": "rfxcom.js"
     }
   },
   "dependencies": {

@@ -30,6 +30,7 @@ module.exports = function (RED) {
     if (process.env.hasOwnProperty("RED_DEBUG") && process.env.RED_DEBUG.indexOf("rfxcom") >= 0) {
         debugOption = {debug: true};
     }
+
 // The config node holding the (serial) port device path for one or more rfxcom family nodes
     function RfxtrxPortNode(n) {
         RED.nodes.createNode(this, n);
@@ -82,18 +83,14 @@ module.exports = function (RED) {
                         rfxtrx.firmwareVersion = status.firmwareVersion;
                         rfxtrx.enabledProtocols = status.enabledProtocols;
                         pool[port].references.forEach(function (node) {
-                            node.status({
-                                fill:  "green",
-                                shape: "dot",
-                                text:  "OK (firmware " + status.firmwareVersion + ")"
+                                showConnectionStatus(node);
                             });
-                        });
                     });
                     rfxtrx.on("disconnect", function (msg) {
                         node.log("disconnected: " + msg);
                         pool[port].references.forEach(function (node) {
-                            node.status({fill:"red",shape:"ring",text:"disconnected"});
-                        });
+                                showConnectionStatus(node);
+                            });
                         if (intervalTimer === null) {
                             intervalTimer = setInterval(function () {
                                 connectTo(rfxtrx, node)
@@ -151,6 +148,7 @@ module.exports = function (RED) {
         LIGHTING1: 0x10,
         LIGHTING2: 0x11,
         LIGHTING3: 0x12,
+        LIGHTING4: 0x13,
         LIGHTING5: 0x14,
         LIGHTING6: 0x15,
         CURTAIN1:  0x18
@@ -178,6 +176,11 @@ module.exports = function (RED) {
                     tx:   new rfxcom.lighting3.transmitter(rfxcomObject, subtype),
                     type: txTypeNumber.LIGHTING3
                 };
+            } else if ((subtype = rfxcom.lighting4[protocolName]) !== undefined) {
+                rfxcomObject.transmitters[protocolName] = {
+                    tx:   new rfxcom.lighting4.transmitter(rfxcomObject, subtype),
+                    type: txTypeNumber.LIGHTING4
+                };
             } else if ((subtype = rfxcom.lighting5[protocolName]) !== undefined) {
                 rfxcomObject.transmitters[protocolName] = {
                     tx:   new rfxcom.lighting5.transmitter(rfxcomObject, subtype),
@@ -198,6 +201,19 @@ module.exports = function (RED) {
         return subtype;
     };
 
+// Convert a string containing a slash/delimited/path to an Array of (string) parts, removing any empty components
+// Return value may be zero-length
+    var stringToParts = function (str) {
+        if (typeof str === "string") {
+            return str.split('/').filter(function (part) {
+                return part !== "";
+            });
+        } else {
+            return [];
+        }
+    };
+
+
 // Convert a string - the rawTopic - into a normalised form (an Array) so that checkTopic() can easily compare
 // a topic against a pattern
     var normaliseTopic = function (rawTopic) {
@@ -205,7 +221,8 @@ module.exports = function (RED) {
         if (rawTopic == undefined || typeof rawTopic !== "string") {
             return [];
         }
-        parts = rawTopic.split("/");
+//        parts = rawTopic.split("/");
+        parts = stringToParts(rawTopic);
         if (parts.length >= 1) {
             parts[0] = parts[0].trim().replace(/ +/g, '_').toUpperCase();
         }
@@ -238,17 +255,39 @@ module.exports = function (RED) {
         return parts;
     };
 
-// Check if the supplied topic starts with the given pattern (both being normalised topics)
-    var checkTopic = function (topic, pattern) {
-        var parts, i;
-        parts = normaliseTopic(topic);
-        for (i = 0; i < pattern.length; i++) {
+// Normalise the supplied topic and check if it starts with the given pattern
+    var normaliseAndCheckTopic = function (topic, pattern) {
+        return checkTopic(normaliseTopic(topic), pattern);
+    };
+
+// Check if the supplied topic starts with the given pattern (both being normalised)
+    var checkTopic = function (parts, pattern) {
+        for (var i = 0; i < pattern.length; i++) {
             if (parts[i] !== pattern[i]) {
                 return false;
             }
         }
         return true;
     };
+
+// Show the connection status of the node depending on its underlying rfxtrx object
+    var showConnectionStatus = function (node) {
+        if (node.rfxtrx.connected === false) {
+            node.status({fill: "red", shape: "ring", text: "disconnected"});
+        } else {
+            node.status({fill: "green", shape: "dot", text: "OK (firmware " + node.rfxtrx.firmwareVersion + ")"});
+        }
+    };
+
+// The config node holding the PT2262 deviceList object
+    function RfxPT2262DeviceList(n) {
+        RED.nodes.createNode(this, n);
+        this.name = n.name;
+        this.devices = n.devices;
+    }
+
+// Register the config node
+    RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
 
 // An input node for listening to messages from lighting remote controls
     function RfxLightsInNode(n) {
@@ -263,7 +302,7 @@ module.exports = function (RED) {
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
-                node.status({fill:"red",shape:"ring",text:"disconnected"});
+                showConnectionStatus(node);
                 node.on("close", function () {
                     releasePort(node);
                 });
@@ -275,7 +314,7 @@ module.exports = function (RED) {
                     } else {
                         msg.topic = msg.topic + "/" + evt.unitcode;
                     }
-                    if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                         switch (evt.commandNumber) {
                             case 0 :
                             case 5 :
@@ -314,7 +353,7 @@ module.exports = function (RED) {
                     } else {
                         msg.topic = msg.topic + "/" + evt.unitcode;
                     }
-                    if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                         switch (evt.commandNumber) {
                             case 0:
                             case 3:
@@ -348,7 +387,7 @@ module.exports = function (RED) {
                     } else {
                         msg.topic = msg.topic + "/" + evt.unitcode;
                     }
-                    if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                         switch (evt.subtype) {
                             case 0: // Lightwave RF
                                 switch (evt.commandNumber) {
@@ -438,7 +477,7 @@ module.exports = function (RED) {
                     } else {
                         msg.topic = msg.topic + "/" + evt.unitcode;
                     }
-                    if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                         switch (evt.commandNumber) {
                             case 1:
                             case 3:
@@ -467,13 +506,115 @@ module.exports = function (RED) {
 
 // Remove the message event handlers on close
     RfxLightsInNode.prototype.close = function () {
-        if (this.rfxtrx !== null) {
+        if (this.rfxtrx) {
             this.rfxtrx.removeAllListeners("lighting1");
             this.rfxtrx.removeAllListeners("lighting2");
             this.rfxtrx.removeAllListeners("lighting5");
             this.rfxtrx.removeAllListeners("lighting6");
         }
     };
+
+// An input node for listening to messages from PT622 (lighting4) devices
+    function RfxPT2262InNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "all";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.devices = RED.nodes.getNode(n.deviceList).devices || [];
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+        var node = this;
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.rfxtrx.on("lighting4", function (evt) {
+                    var msg = {status: {rssi: evt.rssi}};
+                    var db = node.devices.filter(function (entry) {return entry.rawData == evt.data});
+                    if (db.length === 0) {
+                        msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
+                    } else {
+                        if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
+                            msg.topic = db[0].device.join("/");
+                            msg.payload = db[0].payload;
+                        } else {
+                            return;
+                        }
+                    }
+                    node.send(msg);
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-PT2262-in", RfxPT2262InNode);
+
+// Remove the message event handlers on close
+    RfxPT2262InNode.prototype.close = function () {
+        if (this.rfxtrx) {
+            this.rfxtrx.removeAllListeners("lighting4");
+        }
+    };
+
+// An output node for sending messages to lighting4 devices, using the PT2262/72 chips
+    function RfxPT2262OutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.devices = RED.nodes.getNode(n.deviceList).devices || [];
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        var node = this;
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                getRfxcomSubtype(node.rfxtrx, "PT2262");
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    var topic, db;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        topic = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        topic = stringToParts(msg.topic);
+                    } else {
+                        if (msg.payload === undefined) {
+                            // If the message has no topic and no payload, send the data in the property 'raw'
+                            if (msg.raw !== undefined && msg.raw.data !== undefined) {
+                                node.rfxtrx.transmitters['PT2262'].tx.sendData(msg.raw.data, msg.raw.pulseWidth);
+                                return;
+                            }
+                        } else {
+                            node.warn("rfx-PT2262-out: missing topic");
+                        }
+                        return;
+                    }
+                    db = node.devices.filter(function (entry) {
+                            return msg.payload == entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
+                        });
+                    if (db.length === 1) {
+                        node.rfxtrx.transmitters['PT2262'].tx.sendData(db[0].rawData, db[0].pulseWidth);
+                    } else {
+                        node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
 
 // An input node for listening to messages from (mainly weather) sensors
     function RfxWeatherSensorNode(n) {
@@ -488,7 +629,7 @@ module.exports = function (RED) {
         var i;
 
         var sendWeatherMessage = function (evt, msg) {
-            if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.status = {rssi: evt.rssi};
                 if (evt.hasOwnProperty("batteryLevel")) {
                     msg.status.battery = evt.batteryLevel;
@@ -540,7 +681,7 @@ module.exports = function (RED) {
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
-                node.status({fill:"red",shape:"ring",text:"disconnected"});
+                showConnectionStatus(node);
                 node.on("close", function () {
                     releasePort(node);
                 });
@@ -595,7 +736,7 @@ module.exports = function (RED) {
 // Remove the message event handlers on close
     RfxWeatherSensorNode.prototype.close = function () {
         var i;
-        if (this.rfxtrx !== null) {
+        if (this.rfxtrx) {
             for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
                 this.rfxtrx.removeAllListeners("temprain" + i);
             }
@@ -636,7 +777,7 @@ module.exports = function (RED) {
         var i;
 
         var sendMeterMessage = function (evt, msg) {
-            if (node.topicSource === "all" || checkTopic(msg.topic, node.topic)) {
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.status = {rssi: evt.rssi};
                 if (evt.hasOwnProperty("batteryLevel")) {
                     msg.status.battery = evt.batteryLevel;
@@ -667,7 +808,7 @@ module.exports = function (RED) {
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
-                node.status({fill:"red",shape:"ring",text:"disconnected"});
+                showConnectionStatus(node);
                 node.on("close", function () {
                     releasePort(node);
                 });
@@ -701,7 +842,7 @@ module.exports = function (RED) {
 
 // Remove the message event handler on close
     RfxEnergyMeterNode.prototype.close = function () {
-        if (this.rfxtrx !== null) {
+        if (this.rfxtrx) {
             this.rfxtrx.removeAllListeners("elec");
         }
     };
@@ -710,8 +851,8 @@ module.exports = function (RED) {
     function RfxLightsOutNode(n) {
         RED.nodes.createNode(this, n);
         this.port = n.port;
-        this.topicSource = n.topicSource;
-        this.topic = n.topic;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
@@ -795,26 +936,23 @@ module.exports = function (RED) {
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
-                node.status({fill:"red",shape:"ring",text:"disconnected"});
+                showConnectionStatus(node);
                 node.on("close", function () {
                     releasePort(node);
                 });
                 node.on("input", function (msg) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
-                    var path, protocolName, subtype, deviceAddress, unitAddress, levelRange;
+                    var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange;
                     if (node.topicSource == "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
-                        path = msg.topic;
-                    } else {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
                         node.warn("rfx-lights-out: missing topic");
                         return;
                     }
-                    // Split the path to get the components of the address (remove empty components)
-                    path = path.split('/').filter(function (str) {
-                        return str !== "";
-                    });
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                     deviceAddress = path.slice(1, -1);
                     unitAddress = parseUnitAddress(path.slice(-1)[0]);

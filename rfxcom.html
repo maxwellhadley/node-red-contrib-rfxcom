@@ -98,7 +98,7 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"all", required:true },
-            topic: { value:"", validate:function(t) {
+            topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.length > 0
                 }
             }
@@ -107,16 +107,16 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
         inputs:0,
         outputs:1,
         icon: "rfxcom.png",
-        label: function() {
+        label: function () {
             var rfxtrxNode = RED.nodes.node(this.rfxtrx);
             return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-lights");
         },
-        labelStyle: function() {
+        labelStyle: function () {
             return this.name ? "node_label_italic" : "";
         },
-        oneditprepare: function() {
+        oneditprepare: function () {
             var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
+            topicSource.change(function () {
                 var id = topicSource.find("option:selected").val();
                 if (id == "single") {
                     $("#node-input-row-topic").show();
@@ -270,7 +270,7 @@ Not all devices support all commands. Less common commands include 'Toggle' and 
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"msg", required:true },
-            topic: { value:"", validate:function(t) {
+            topic: { value:"", validate:function (t) {
                     return this.topicSource == "msg" || t.length > 0
                 }
             }
@@ -391,3 +391,311 @@ is an array
     });
 </script>
 
+<!-- This is the config node holding deviceList data for PT2262 nodes -->
+<script type="text/x-red" data-template-name="PT2262-device-list">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <div style="padding: 5px; padding-left: 0px; border: 1px solid #fff; margin-bottom:-12px">
+            <span style="display:inline-block; margin-left:12px; width:220px;">Topic</span>
+            <span style="display:inline-block; margin-left:12px; width:108px;">Payload</span>
+            <span style="display:inline-block; margin-left:12px; width:78px; text-align:right;">Data</span>
+            <span style="display:inline-block; margin-left:15px; width:48px; text-align:right;">Pulse</span>
+        </div>
+    </div>
+    <div class="form-row">
+        <div id="node-config-list-container-div" style="border-radius: 5px; height: 216px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+            <ol id="node-config-list-container" style="list-style-type:none; margin: 0;">
+            </ol>
+        </div>
+    </div>
+    <div class="form-row">
+        <a href="#" class="btn btn-mini" id="node-config-add-list-entry" style="margin-top: 4px;"><i class="icon-plus"></i> Add New Device</a>
+    </div>
+
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('PT2262-device-list', {
+        category: 'config',
+        defaults: {
+            name: { value:"", required:true },
+            devices: { value:[] }
+        },
+        label: function () {
+            return this.name || 'PT2262 devices';
+        },
+        oneditprepare: function () {
+            function generateEntry(entry, insert) {
+                var container = $('<li/>', {style:"margin:0; padding:4px; padding-left:2px; padding-top:2px;"});
+                var row = $('<div/>').appendTo(container);
+                var entryField = $('<span/>').appendTo(row);
+                var deviceField = $('<input/>', { class:"node-config-device-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:220px;"}).appendTo(entryField);
+                var payloadField = $('<input/>', { class:"node-config-payload-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:108px;"}).appendTo(entryField);
+                var rawDataField = $('<input/>', { class:"node-config-rawdata-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:78px; text-align:right;"}).appendTo(entryField);
+                var pulseWidthField = $('<input/>', { class:"node-config-pulsewidth-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:48px; text-align:right;"}).appendTo(entryField);
+                var deleteButton = $('<a/>', {href:"#", class:"btn btn-mini", style:"margin-left: 5px;"}).appendTo(row);
+                    $('<i/>', {class:"icon-remove"}).appendTo(deleteButton);
+                    deleteButton.click(function() {
+                        container.css({"background":"#fee"});
+                        container.fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                    });
+                    deviceField.val(entry.device.join("/"));
+                    payloadField.val(entry.payload);
+                    rawDataField.val(entry.rawData);
+                    pulseWidthField.val(entry.pulseWidth);
+                    $("#node-config-list-container").append(container);
+                }
+
+                $("#node-config-add-list-entry").click(function () {
+                    generateEntry({ device:["PT2262"], payload:"", rawData:0, pulseWidth:350 });
+                    $("#node-config-list-container-div").scrollTop($("#node-config-list-container-div").get(0).scrollHeight);
+                });
+
+                if ( this.devices !== undefined ) {
+                    for (var i = 0; i < this.devices.length; i++) {
+                        var entry = this.devices[i];
+                        generateEntry(entry);
+                    }
+                }
+            },
+            oneditsave: function () {
+                // Convert a string containing a slash/delimited/path to an Array of (string) parts, removing any empty components
+                // Return value may be zero-length
+                var stringToParts = function (str) {
+                    if (typeof str === "string") {
+                        return str.split('/').filter(function (part) {
+                            return part !== "";
+                        });
+                    } else {
+                        return [];
+                    }
+                };
+
+                var entries = $("#node-config-list-container").children();
+                var node = this;
+                node.devices = [];
+                entries.each(function (i) {
+                    var entry = $(this);
+                    var row = {};
+                    row.device = stringToParts(entry.find(".node-config-device-input-value").val());
+                    row.payload = entry.find(".node-config-payload-input-value").val();
+                    row.rawData = "0x" + parseInt(entry.find(".node-config-rawdata-input-value").val()).toString(16);
+                    row.pulseWidth = Number(entry.find(".node-config-pulsewidth-input-value").val());
+                    node.devices.push(row);
+                });
+
+                var compareEntries = function (a, b) {
+                    var idx, result;
+                    for (idx = 0; idx < Math.min(a.device.length, b.device.length); idx++) {
+                        if (a.device[idx] < b.device[idx]) {
+                            return -1;
+                        } else if (a.device[idx] > b.device[idx]) {
+                            return 1;
+                        }
+                    }
+                    if (a.device.length < b.device.length) {
+                        return -1;
+                    } else if (a.device.length > b.device.length) {
+                        return 1;
+                    } else if (a.payload < b.payload) {
+                        return -1;
+                    } else if (a.payload > b.payload) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                };
+
+                node.devices = node.devices.sort(compareEntries).filter(function (item, idx, entry) {
+                    if (idx > 0) {
+                        return compareEntries(item, entry[idx-1]) !== 0;
+                    } else {
+                        return true;
+                    }
+                });
+            }
+        });
+    </script>
+
+<!-- This is a receiver node for listening to messages from PT2262 devices -->
+<script type="text/x-red" data-template-name="rfx-PT2262-in">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="all">listen for messages from to any address</option>
+          <option value="single">only listen for addresses matching a pattern</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="PT2262/address">
+    </div>
+    <div class="form-row node-input-deviceList">
+        <label for="node-input-deviceList"><i class="icon-bullhorn"></i> Devices</label>
+        <input type="text" id="node-input-deviceList">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-PT2262-in -->
+<script type="text/x-red" data-help-name="rfx-PT2262-in">
+<p>
+Listens for messages from PT2262 devices using an RFXtrx433 transceiver
+<p>
+Translates the received raw data to a message topic (corresponding to a device address) and payload as specified by a
+matching entry the configured list of Devices. If no matching entry is found, the received data & pulse width are
+provided in the 'raw' property of the message; if multiple matches are found, the first in the list will be used to set
+the topic & payload. The message also has a 'status' property indicating the received the signal strength (rssi).
+<p>
+When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
+must be unique. All addresses should start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
+rfx-PT2262-out nodes, or different nodes may use different lists.
+<p>
+The node can either receive all messages, or only those from a restricted subset of adresses which match a topic
+template. This takes place using the topic found in the device list as the message address. For example, if data
+0x555533 corresponds to topic 'PT2262/Remote/1 & payload '2', a message will be output if the address pattern is
+'PT2262', 'PT2262/Remote' or 'PT2262/Remote/1'.
+<p>
+
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-PT2262-in', {
+        category: 'input',
+        defaults: {
+            name: { name:"" },
+            port: { type:"rfxtrx-port", required:true },
+            deviceList: { type:'PT2262-device-list', value:'Device List', required:true },
+            topicSource: { value:"all", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "all" || t.indexOf("PT2262/") === 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:0,
+        outputs:1,
+        icon: "rfxcom.png",
+        label: function () {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-PT2262");
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function () {
+                var id = topicSource.find("option:selected").val();
+                if (id == "single") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for devices using the PT2262/PT2272 chipset -->
+<script type="text/x-red" data-template-name="rfx-PT2262-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="PT2262/address">
+    </div>
+    <div class="form-row node-input-deviceList">
+        <label for="node-input-deviceList"><i class="icon-bullhorn"></i> Devices</label>
+        <input type="text" id="node-input-deviceList">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-PT2262-out -->
+<script type="text/x-red" data-help-name="rfx-PT2262-out">
+<p>
+Sends messages to PT2262/PT2272 devices using an RFXtrx433 transceiver
+<p>
+Translates the message topic ('address') and payload to the required raw data by looking for a matching entry in the
+configured list of Devices. Alternatively, the same device address can be used for all messages. If no matching entry is
+found, nothing is sent. If both topic and message payload are undefined, the value from the 'raw.data' property of
+the message, if present, will be sent. A 'raw.pulseWidth' property can also be used to set the transmitted pulse width
+in this case.
+<p>
+When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
+must be unique. All addresses should start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
+rfx-PT2262-out nodes, or different nodes may use different lists.
+<p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-PT2262-out', {
+        category: 'output',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            deviceList: { type:'PT2262-device-list', value:'Device List', required:true },
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.indexOf("PT2262/") === 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-PT2262");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
