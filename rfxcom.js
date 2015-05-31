@@ -279,17 +279,15 @@ module.exports = function (RED) {
         }
     };
 
-// This is a dummy for the eventual PT2262 dictionary object
-    var PT2262db =
-        [
-            {device:"PT2262/Remote/1".split("/"), payload:"1",   rawData:'0x555530', pulseWidth:350},
-            {device:"PT2262/Remote/1".split("/"), payload:2,     rawData:'0x555531'},
-            {device:"PT2262/Remote/1".split("/"), payload:"3",   rawData:'0x555532', pulseWidth:350},
-            {device:"PT2262/Remote/1".split("/"), payload:"Yes", rawData:"0x555533", pulseWidth:350}, // Both hex string & Number work on transmit
-            {device:"PT2262/Remote/1".split("/"), payload:"4",   rawData:0x555533, pulseWidth:350}, // Both hex string & Number work on transmit
-            {device:"PT2262/PIR/1".split("/"),    payload:1,     rawData:'0x325208', pulseWidth:350},
-            {device:"PT2262/keyfob".split("/"),   payload:1,     rawData:'0x414497', pulseWidth:350}
-        ];
+// The config node holding the PT2262 deviceList object
+    function RfxPT2262DeviceList(n) {
+        RED.nodes.createNode(this, n);
+        this.name = n.name;
+        this.devices = n.devices;
+    }
+
+// Register the config node
+    RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
 
 // An input node for listening to messages from lighting remote controls
     function RfxLightsInNode(n) {
@@ -520,11 +518,10 @@ module.exports = function (RED) {
     function RfxPT2262InNode(n) {
         RED.nodes.createNode(this, n);
         this.port = n.port;
-        //this.topicSource = n.topicSource;
-        //this.topic = n.topic.split("/");
         this.topicSource = n.topicSource || "all";
         this.topic = stringToParts(n.topic);
         this.name = n.name;
+        this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.rfxtrxPort = RED.nodes.getNode(this.port);
         var node = this;
 
@@ -537,7 +534,7 @@ module.exports = function (RED) {
                 });
                 node.rfxtrx.on("lighting4", function (evt) {
                     var msg = {status: {rssi: evt.rssi}};
-                    var db = PT2262db.filter(function (entry) {return entry.rawData == evt.data});
+                    var db = node.devices.filter(function (entry) {return entry.rawData == evt.data});
                     if (db.length === 0) {
                         msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
                     } else {
@@ -571,6 +568,7 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource || "msg";
         this.topic = stringToParts(n.topic);
+        this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
@@ -601,7 +599,7 @@ module.exports = function (RED) {
                         }
                         return;
                     }
-                    db = PT2262db.filter(function (entry) {
+                    db = node.devices.filter(function (entry) {
                             return msg.payload == entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
                         });
                     if (db.length === 1) {
