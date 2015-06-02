@@ -422,7 +422,7 @@ is an array
         category: 'config',
         defaults: {
             name: { value:"", required:true },
-            devices: { value:[] }
+            devices: { value:[], required: true }
         },
         label: function () {
             return this.name || 'PT2262 devices';
@@ -581,7 +581,7 @@ template. This takes place using the topic found in the device list as the messa
         defaults: {
             name: { name:"" },
             port: { type:"rfxtrx-port", required:true },
-            deviceList: { type:'PT2262-device-list', value:'Device List', required:true },
+            deviceList: { type:'PT2262-device-list', required:true },
             topicSource: { value:"all", required:true },
             topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.indexOf("PT2262/") === 0
@@ -665,7 +665,7 @@ rfx-PT2262-out nodes, or different nodes may use different lists.
         defaults: {
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
-            deviceList: { type:'PT2262-device-list', value:'Device List', required:true },
+            deviceList: { type:'PT2262-device-list', required:true },
             topicSource: { value:"msg", required:true },
             topic: { value:"", validate:function (t) {
                     return this.topicSource == "msg" || t.indexOf("PT2262/") === 0
