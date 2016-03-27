@@ -818,17 +818,17 @@ module.exports = function (RED) {
                     })
                 }
                 for (i = 1; i < rfxcom.elec23.length; i++) {
-                    node.rfxtrx.on("elec" + i + 1, function (evt) {
+                    node.rfxtrx.on("elec" + (i + 1), function (evt) {
                         sendMeterMessage(evt, {topic: rfxcom.elec23[evt.subtype] + "/" + evt.id})
                     })
                 }
-                for (i = 1; i < rfxcom.elec1.length; i++) {
-                    node.rfxtrx.on("elec" + i + 3, function (evt) {
+                for (i = 1; i < rfxcom.elec4.length; i++) {
+                    node.rfxtrx.on("elec" + (i + 3), function (evt) {
                         sendMeterMessage(evt, {topic: rfxcom.elec4[evt.subtype] + "/" + evt.id})
                     })
                 }
-                for (i = 1; i < rfxcom.elec1.length; i++) {
-                    node.rfxtrx.on("elec" + i + 4, function (evt) {
+                for (i = 1; i < rfxcom.elec5.length; i++) {
+                    node.rfxtrx.on("elec" + (i + 4), function (evt) {
                         sendMeterMessage(evt, {topic: rfxcom.elec5[evt.subtype] + "/" + evt.id})
                     })
                 }
@@ -840,10 +840,22 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("rfx-meter", RfxEnergyMeterNode);
 
-// Remove the message event handler on close
+// Remove the message event handlers on close
     RfxEnergyMeterNode.prototype.close = function () {
+		var i;
         if (this.rfxtrx) {
-            this.rfxtrx.removeAllListeners("elec");
+			for (i = 1; i < rfxcom.elec1.length; i++) {
+				this.rfxtrx.removeAllListeners("elec" + i);
+			}
+			for (i = 1; i < rfxcom.elec23.length; i++) {
+				this.rfxtrx.removeAllListeners("elec" + (i+1));
+			}
+			for (i = 1; i < rfxcom.elec4.length; i++) {
+				this.rfxtrx.removeAllListeners("elec" + (i+3));
+			}
+			for (i = 1; i < rfxcom.elec5.length; i++) {
+				this.rfxtrx.removeAllListeners("elec" + (i+4));
+			}
         }
     };
 
