@@ -18,7 +18,7 @@
   ],
   "node-red": {
     "nodes": {
-      "rfx-lights-in": "rfxcom.js"
+      "rfxcom": "rfxcom.js"
     }
   },
   "dependencies": {
