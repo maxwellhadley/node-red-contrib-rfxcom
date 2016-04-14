@@ -86,6 +86,7 @@ module.exports = function (RED) {
                                 showConnectionStatus(node);
                             });
                     });
+                    // TODO - check if new RFY 'list' (remotes) event handler may be needed?
                     rfxtrx.on("disconnect", function (msg) {
                         node.log("disconnected: " + msg);
                         pool[port].references.forEach(function (node) {
