@@ -81,6 +81,7 @@ module.exports = function (RED) {
                     rfxtrx.on("status", function (status) {
                         rfxtrx.receiverType = status.receiverType;
                         rfxtrx.firmwareVersion = status.firmwareVersion;
+                        rfxtrx.firmwareType = status.firmwareType;
                         rfxtrx.enabledProtocols = status.enabledProtocols;
                         pool[port].references.forEach(function (node) {
                                 showConnectionStatus(node);
@@ -282,7 +283,8 @@ module.exports = function (RED) {
         if (node.rfxtrx.connected === false) {
             node.status({fill: "red", shape: "ring", text: "disconnected"});
         } else {
-            node.status({fill: "green", shape: "dot", text: "OK (firmware " + node.rfxtrx.firmwareVersion + ")"});
+            node.status({fill: "green", shape: "dot",
+                text: "OK (v" + node.rfxtrx.firmwareVersion + " " + node.rfxtrx.firmwareType + ")"});
         }
     };
 
