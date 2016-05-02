@@ -152,6 +152,7 @@ module.exports = function (RED) {
         LIGHTING4: 0x13,
         LIGHTING5: 0x14,
         LIGHTING6: 0x15,
+        CHIME1: 0x16,
         CURTAIN1:  0x18
     };
 
@@ -191,6 +192,11 @@ module.exports = function (RED) {
                 rfxcomObject.transmitters[protocolName] = {
                     tx:   new rfxcom.lighting6.transmitter(rfxcomObject, subtype),
                     type: txTypeNumber.LIGHTING6
+                };
+            } else if ((subtype = rfxcom.chime1[protocolName]) !== undefined) {
+                rfxcomObject.transmitters[protocolName] = {
+                    tx:   new rfxcom.chime1.transmitter(rfxcomObject, subtype),
+                    type: txTypeNumber.CHIME1
                 };
             } else {
                 subtype = -1; // Error return
@@ -1009,5 +1015,137 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
+
+    // An input node for listening to messages from doorbells
+    function RfxDoorbellInNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource;
+        this.topic = normaliseTopic(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        var node = this;
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.rfxtrx.on("lighting1", function (evt) {
+                    var msg = {status: {rssi: evt.rssi}};
+                    msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode + "/" + evt.unitcode;
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                        if (evt.subtype !== 0x01 || evt.commandNumber !== 7) {
+                            return;
+                        }
+                        node.send(msg);
+                    }
+                });
+
+                node.rfxtrx.on("chime1", function (evt) {
+                    var msg = {status: {rssi: evt.rssi}};
+                    msg.topic = rfxcom.chime1[evt.subtype] + "/" + evt.id;
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                        if (evt.subtype === rfxcom.chime1.BYRON_SX) {
+                            msg.payload = evt.commandNumber;
+                        }
+                        node.send(msg);
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-doorbell-in", RfxDoorbellInNode);
+
+// Remove the message event handlers on close
+    RfxDoorbellInNode.prototype.close = function () {
+        if (this.rfxtrx) {
+            this.rfxtrx.removeAllListeners("lighting1");
+            this.rfxtrx.removeAllListeners("chime1");
+        }
+    };
+
+// An output node for sending messages to doorbells
+    function RfxDoorbellOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        var node = this;
+
+        // Generate the chime command depending on the subtype and tone parameter, if any
+        var parseCommand = function (protocolName, address, str) {
+            var sound = NaN;
+            if (str != undefined) {
+                sound = parseInt(str);
+            }
+            try {
+                if (protocolName == 'BYRON_SX' && !isNaN(sound)) {
+                    node.rfxtrx.transmitters[protocolName].tx.chime(address, sound);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].tx.chime(address);
+                }
+            } catch (exception) {
+                if (exception.arguments !== undefined) {
+                    node.warn("Input '" + str + "': generated command '" + exception.arguments[0] + "' not supported by device");
+                } else {
+                    node.warn(exception);
+                }
+            }
+        };
+        
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    var path = [], protocolName, subtype, deviceAddress, unitAddress;
+                    if (node.topicSource == "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn("rfx-doorbell-out: missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    deviceAddress = path.slice(1, 2);
+                    if (protocolName === 'ARC') {
+                        unitAddress = parseUnitAddress(path.slice(-1)[0]);
+                    } else {
+                        unitAddress = [];
+                    }
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName);
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-lights-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload);
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-doorbell-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-doorbell-out", RfxDoorbellOutNode);
 
 };
