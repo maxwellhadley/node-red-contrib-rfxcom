@@ -18,7 +18,7 @@ Alternatively, it can be installed globally:
 
     npm install -g node-red-contrib-rfxcom
 
-The nodes will be added to the palette the next time node-RED is started.
+The nodes will be added to the palette the next time node-RED is started, under the 'home automation' category.
 
 Nodes included in the package
 -----------------------------
@@ -28,14 +28,23 @@ switches, and some types of doorbell.
 
 **rfx-lights-out** Sends messages to 'lighting' type devices including switches, dimmers, and some types of relay.
 
-**rfx-PT2262-in** Receives messages from devices using the PT2262 chipset. many no-name remote controls and alarm
+**rfx-doorbell-in** Receives messages from wireless bell pushes
+
+**rfx-doorbell-out** Sends messages to wireless door chimes
+
+**rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors. Also handles soil
+moisture sensors
+
+**rfx-meter** Receives messages from wireless energy monitors such as OWL
+
+**rfx-detector** Receives messages from wireless intruder and smoke detectors. **This node and the associated software
+must not be used in situations where loss of or damage to property, or the avoidance of injury or death, may depend on
+its correct operation**
+
+**rfx-PT2262-in** Receives messages from devices using the PT2262 chipset. Many no-name remote controls and alarm
 systems use these chips
 
 **rfx-PT2262-out** Sends messages to devices using the PT2262 family of chips.
-
-**rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors.
-
-**rfx-meter** Receives messages from wireless energy monitors such as OWL
 
 Basic help text is provided for each node. Additional information is available in the 'RFXmngr.exe' program supplied
 with the RFXtrx433E, and more details may be found in the SDK documentation, available on request from RFXCOM.

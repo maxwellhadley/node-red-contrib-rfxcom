@@ -135,7 +135,7 @@ module.exports = function (RED) {
 // Utility function: normalises the accepted representations of 'unit addresses' to be
 // an integer, and ensures all variants of the 'group address' are converted to 0
     var parseUnitAddress = function (str) {
-        if (str == undefined || /all|group|\+/i.test(str)) {
+        if (str === undefined || /all|group|\+/i.test(str)) {
             return 0;
         } else {
             return Math.round(Number(str));
@@ -226,7 +226,7 @@ module.exports = function (RED) {
 // a topic against a pattern
     var normaliseTopic = function (rawTopic) {
         var parts;
-        if (rawTopic == undefined || typeof rawTopic !== "string") {
+        if (rawTopic === undefined || typeof rawTopic !== "string") {
             return [];
         }
 //        parts = rawTopic.split("/");
@@ -390,8 +390,8 @@ module.exports = function (RED) {
                 node.rfxtrx.on("lighting5", function (evt) {
                     var msg = {status: {rssi: evt.rssi}};
                     msg.topic = rfxcom.lighting5[evt.subtype] + "/" + evt.id;
-                    if ((evt.commandNumber == 2 && (evt.subtype == 0 || evt.subtype == 2 || evt.subtype == 4) ) ||
-                        (evt.commandNumber == 3) && (evt.subtype == 2 || evt.subtype == 4)) {
+                    if ((evt.commandNumber === 2 && (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4) ) ||
+                        (evt.commandNumber === 3) && (evt.subtype === 2 || evt.subtype === 4)) {
                         msg.topic = msg.topic + "/+";
                     } else {
                         msg.topic = msg.topic + "/" + evt.unitcode;
@@ -543,7 +543,7 @@ module.exports = function (RED) {
                 });
                 node.rfxtrx.on("lighting4", function (evt) {
                     var msg = {status: {rssi: evt.rssi}};
-                    var db = node.devices.filter(function (entry) {return entry.rawData == evt.data});
+                    var db = node.devices.filter(function (entry) {return entry.rawData === evt.data});
                     if (db.length === 0) {
                         msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
                     } else {
@@ -609,7 +609,7 @@ module.exports = function (RED) {
                         return;
                     }
                     db = node.devices.filter(function (entry) {
-                            return msg.payload == entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
+                            return msg.payload === entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
                         });
                     if (db.length === 1) {
                         node.rfxtrx.transmitters['PT2262'].tx.sendData(db[0].rawData, db[0].pulseWidth);
@@ -868,6 +868,114 @@ module.exports = function (RED) {
         }
     };
 
+// An input node for listening to messages from security and smoke detectors
+    function RfxDetectorsNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource;
+        this.topic = normaliseTopic(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        var node = this;
+        node.heartbeats = {};
+        node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone ailent
+        node.HEARTBEATDELAY[rfxcom.security1.X10_DOOR] = 90;
+        node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
+        node.HEARTBEATDELAY[rfxcom.security1.X10_PIR] = 90;
+        node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_PIR] = 20;
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.rfxtrx.on("security1", function (evt) {
+                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                        var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id, status: {rssi: evt.rssi}};
+                        switch (evt.subtype) {
+                            case rfxcom.security1.KD101:
+                            case rfxcom.security1.SA30:
+                                if (evt.deviceStatus === rfxcom.security.PANIC) {
+                                    msg.payload = "Smoke";
+                                }
+                                break;
+                            case rfxcom.security1.MEIANTECH:
+                                if (evt.deviceStatus === rfxcom.security.PANIC) {
+                                    msg.status.battery = evt.batteryLevel;
+                                    msg.payload = "Motion";
+                                }
+                                break;
+                            case rfxcom.security1.POWERCODE_AUX:
+                                msg.status.battery = evt.batteryLevel;
+                                msg.status.tampered = Boolean(evt.tampered);
+                                if (evt.deviceStatus === rfxcom.security.ALARM) {
+                                    msg.payload = "Alarm";
+                                } else if (evt.tampered) {
+                                    msg.payload = "Tamper";
+                                }
+                                break;
+                            // These detectors send "heartbeat" messages at more or less regular intervals
+                            case rfxcom.security1.X10_DOOR:
+                            case rfxcom.security1.POWERCODE_DOOR:
+                            case rfxcom.security1.X10_PIR:
+                            case rfxcom.security1.POWERCODE_PIR:
+                                // Clear any existing heartbeat timeout & set a new one
+                                if (node.heartbeats.hasOwnProperty(msg.topic)) {
+                                    clearInterval(node.heartbeats[msg.topic]);
+                                }
+                                node.heartbeats[msg.topic] = (function () {
+                                    var heartbeatStoppedMsg = {
+                                        topic: msg.topic,
+                                        payload: "Silent",
+                                        lastMessageStatus: msg.status,
+                                        lastMessageTimestamp: Date.now(),
+                                        lastHeardFrom: new Date().toUTCString()
+                                    };
+                                    return setInterval(function () {
+                                        delete heartbeatStoppedMsg._msgid;
+                                        node.send(heartbeatStoppedMsg);
+                                    }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
+                                }());
+                                node.heartbeats[msg.topic].unref();
+                                msg.status.battery = evt.batteryLevel;
+                                msg.status.tampered = Boolean(evt.tampered);
+                                if (evt.deviceStatus === rfxcom.security.ALARM) {
+                                    msg.payload = "Alarm";
+                                } else if (evt.deviceStatus === rfxcom.security.MOTION) {
+                                    msg.payload = "Motion";
+                                } else if (evt.tampered) {
+                                    msg.payload = "Tamper";
+                                } else if (evt.batteryLevel === 0) {
+                                    msg.payload = "Battery Low";
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                        if (msg.payload) {
+                            node.send(msg);
+                        }
+                    }
+                })
+            }
+        }
+    }
+
+    RED.nodes.registerType("rfx-detector-in", RfxDetectorsNode);
+
+    RfxDetectorsNode.prototype.close = function () {
+        for (var heartbeat in this.heartbeats) {
+            if (this.heartbeats.hasOwnProperty(heartbeat)) {
+                clearInterval(this.heartbeats[heartbeat]);
+            }
+
+        }
+        this.rfxtrx.removeAllListeners("security1");
+    };
+    
 // An output node for sending messages to light switches & dimmers (including most types of plug-in switch)
     function RfxLightsOutNode(n) {
         RED.nodes.createNode(this, n);
@@ -909,7 +1017,7 @@ module.exports = function (RED) {
                 value = value/100;
             }
             value = Math.max(0, Math.min(1, value));
-            if (levelRange == undefined) {
+            if (levelRange === undefined) {
                 return NaN;
             } else {
                 return Math.round(levelRange[0] + value*(levelRange[1] - levelRange[0]));
@@ -922,9 +1030,9 @@ module.exports = function (RED) {
         var parseCommand = function (protocolName, address, str, levelRange) {
             var level, mood;
             try {
-                if (/on/i.test(str) || str == 1) {
+                if (/on/i.test(str) || str === 1) {
                     node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
-                } else if (/off/i.test(str) || str == 0) {
+                } else if (/off/i.test(str) || str === 0) {
                     node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
                 } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
                     level = parseDimLevel(str, levelRange);
@@ -965,7 +1073,7 @@ module.exports = function (RED) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
                     var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange;
-                    if (node.topicSource == "node" && node.topic !== undefined) {
+                    if (node.topicSource === "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
                         path = stringToParts(msg.topic);
@@ -1090,7 +1198,7 @@ module.exports = function (RED) {
                 sound = parseInt(str);
             }
             try {
-                if (protocolName == 'BYRON_SX' && !isNaN(sound)) {
+                if (protocolName === "BYRON_SX" && !isNaN(sound)) {
                     node.rfxtrx.transmitters[protocolName].tx.chime(address, sound);
                 } else {
                     node.rfxtrx.transmitters[protocolName].tx.chime(address);
@@ -1115,7 +1223,7 @@ module.exports = function (RED) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
                     var path = [], protocolName, subtype, deviceAddress, unitAddress;
-                    if (node.topicSource == "node" && node.topic !== undefined) {
+                    if (node.topicSource === "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
                         path = stringToParts(msg.topic);
