@@ -600,7 +600,11 @@ module.exports = function (RED) {
                         if (msg.payload === undefined) {
                             // If the message has no topic and no payload, send the data in the property 'raw'
                             if (msg.raw !== undefined && msg.raw.data !== undefined) {
-                                node.rfxtrx.transmitters['PT2262'].tx.sendData(msg.raw.data, msg.raw.pulseWidth);
+                                try {
+                                    node.rfxtrx.transmitters['PT2262'].tx.sendData(msg.raw.data, msg.raw.pulseWidth);
+                                } catch (exception) {
+                                    node.warn(exception.message);
+                                }
                                 return;
                             }
                         } else {
@@ -612,7 +616,11 @@ module.exports = function (RED) {
                             return msg.payload == entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
                         });
                     if (db.length === 1) {
-                        node.rfxtrx.transmitters['PT2262'].tx.sendData(db[0].rawData, db[0].pulseWidth);
+                        try {
+                            node.rfxtrx.transmitters['PT2262'].tx.sendData(db[0].rawData, db[0].pulseWidth);
+                        } catch (exception) {
+                            node.warn(exception.message);
+                        }
                     } else {
                         node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
                     }
@@ -874,10 +882,13 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource || "msg";
         this.topic = stringToParts(n.topic);
+        this.retransmit = n.retransmit || "none";
+        this.retransmitInterval = n.retransmitInterval || 20;
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        node.retransmissions = {};
 
         // Parse a string to obtain the normalised representation of the 'level' associated with a dimming
         // command. The result is either an integer in the range levelRange[0]..levelRange[1], '+' (meaning increase
@@ -918,39 +929,31 @@ module.exports = function (RED) {
 
         // Parses msg.payload looking for lighting command messages, calling the corresponding function in the
         // node-rfxcom API to implement it. All parameter checking is delegated to this API. If no valid command is
-        // recognised, does nothing (quietly).
+        // recognised, does nothing (quietly) - but the transmitter may throw an Error which it does not catch
         var parseCommand = function (protocolName, address, str, levelRange) {
             var level, mood;
-            try {
-                if (/on/i.test(str) || str == 1) {
-                    node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
-                } else if (/off/i.test(str) || str == 0) {
-                    node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
-                } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
-                    level = parseDimLevel(str, levelRange);
-                    if (isFinite(level)) {
-                        node.rfxtrx.transmitters[protocolName].tx.setLevel(address, level);
-                    } else if (level === '+') {
-                        node.rfxtrx.transmitters[protocolName].tx.increaseLevel(address);
-                    } else if (level === '-') {
-                        node.rfxtrx.transmitters[protocolName].tx.decreaseLevel(address);
-                    }
-                } else if (/mood/i.test(str)) {
-                    mood = parseInt(/([0-9]+)/.exec(str));
-                    if (isFinite(mood)) {
-                        node.rfxtrx.transmitters[protocolName].tx.setMood(address, mood);
-                    }
-                } else if (/toggle/i.test(str)) {
-                    node.rfxtrx.transmitters[protocolName].tx.toggleOnOff(address);
-                } else if (/program|learn/i.test(str)) {
-                    node.rfxtrx.transmitters[protocolName].tx.program(address);
+            if (/on/i.test(str) || str == 1) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
+            } else if (/off/i.test(str) || str == 0) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
+            } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
+                level = parseDimLevel(str, levelRange);
+                if (isFinite(level)) {
+                    node.rfxtrx.transmitters[protocolName].tx.setLevel(address, level);
+                } else if (level === '+') {
+                    node.rfxtrx.transmitters[protocolName].tx.increaseLevel(address);
+                } else if (level === '-') {
+                    node.rfxtrx.transmitters[protocolName].tx.decreaseLevel(address);
                 }
-            } catch (exception) {
-                if (exception.arguments !== undefined) {
-                    node.warn("Input '" + str + "': generated command '" + exception.arguments[0] + "' not supported by device");
-                } else {
-                    node.warn(exception);
+            } else if (/mood/i.test(str)) {
+                mood = parseInt(/([0-9]+)/.exec(str));
+                if (isFinite(mood)) {
+                    node.rfxtrx.transmitters[protocolName].tx.setMood(address, mood);
                 }
+            } else if (/toggle/i.test(str)) {
+                node.rfxtrx.transmitters[protocolName].tx.toggleOnOff(address);
+            } else if (/program|learn/i.test(str)) {
+                node.rfxtrx.transmitters[protocolName].tx.program(address);
             }
         };
 
@@ -964,7 +967,7 @@ module.exports = function (RED) {
                 node.on("input", function (msg) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
-                    var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange;
+                    var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange, lastCommand, topic;
                     if (node.topicSource == "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
@@ -1003,7 +1006,45 @@ module.exports = function (RED) {
                                     break;
                             }
                             if (levelRange !== undefined) {
-                                parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, levelRange);
+                                try {
+                                    // Send the command for the first time
+                                    parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, levelRange);
+                                    // If we reach this point, the command did not throw an error. Check if should retransmit
+                                    // it & set the Timeout or Interval as appropriate
+                                    if (node.retransmit != "none") {
+                                        topic = path.join("/");
+                                        // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                                        // function context, where the function lastCommand() can find them
+                                        lastCommand = (function () {
+                                            var protocol = protocolName, address = deviceAddress.concat(unitAddress),
+                                                payload = msg.payload, range = levelRange, key = topic;
+                                            return function () {
+                                                parseCommand(protocol, address, payload, range);
+                                                if (node.retransmit === "once") {
+                                                    delete(node.retransmissions[key]);
+                                                }
+                                            };
+                                        }());
+                                        if (node.retransmit === "once") {
+                                            if (node.retransmissions.hasOwnProperty(topic)) {
+                                                clearTimeout(node.retransmissions[topic]);
+                                            }
+                                            node.retransmissions[topic] = setTimeout(lastCommand, 1000*node.retransmitInterval);
+                                        } else if (node.retransmit === "repeat") {
+                                            if (node.retransmissions.hasOwnProperty(topic)) {
+                                                clearInterval(node.retransmissions[topic]);
+                                            }
+                                            node.retransmissions[topic] = setInterval(lastCommand, 60*1000*node.retransmitInterval);
+                                        }
+                                    }
+                                } catch (exception) {
+                                    if (exception.message.indexOf("is not a function") >= 0) {
+                                        node.warn("Input '" + msg.payload + "' generated command '" +
+                                            exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                                    } else {
+                                        node.warn(exception);
+                                    }
+                                }
                             }
                         }
                     } catch (exception) {
@@ -1017,6 +1058,24 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
+
+// Remove all retransmission timers on close
+    RfxLightsOutNode.prototype.close = function () {
+        var tx;
+        if (this.retransmit === "once") {
+            for (tx in this.retransmissions) {
+                if (this.retransmissions.hasOwnProperty(tx)) {
+                    clearTimeout(this.retransmissions[tx]);
+                }
+            }
+        } else if (this.retransmit === "repeat") {
+            for (tx in this.retransmissions) {
+                if (this.retransmissions.hasOwnProperty(tx)) {
+                    clearInterval(this.retransmissions[tx]);
+                }
+            }
+        }
+    };
 
     // An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
@@ -1096,11 +1155,7 @@ module.exports = function (RED) {
                     node.rfxtrx.transmitters[protocolName].tx.chime(address);
                 }
             } catch (exception) {
-                if (exception.arguments !== undefined) {
-                    node.warn("Input '" + str + "': generated command '" + exception.arguments[0] + "' not supported by device");
-                } else {
-                    node.warn(exception);
-                }
+                node.warn(exception);
             }
         };
         

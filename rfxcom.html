@@ -147,6 +147,20 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
         <label for="node-input-topic"></label>
         <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
     </div>
+    <div class="form-row node-input-retransmit">
+        <label for="node-input-retransmit"><i class="fa fa-refresh"></i> Repeat</label>
+        <select id="node-input-retransmit" style="width:73% !important">
+          <option value="none">send each command once only</option>
+          <option value="once">repeat each command after a delay</option>
+          <option value="repeat">repeat each command at regular intervals</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-retransmitInterval">
+        <label for="node-input-retransmitInterval"></label>
+        <span id="node-input-retransmitInterval-caption" style="width:10%; display:inline-block; margin-left: 8px; margin-right:12px;">Delay</span>
+        <input type="text" id="node-input-retransmitInterval" style="width:10%" placeholder="10">
+        <span id="node-input-retransmitInterval-units" style="display:inline-block; margin-left:6px;">seconds</span>
+    </div>
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -175,6 +189,10 @@ Typical commands are 'On' & 'Off' (or equivalently 1 & 0); 'Bright' or 'Dim+' to
 reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value between 0 and 1) to set the brightness to a given level.
 Not all devices support all commands. Less common commands include 'Toggle' and 'Mood <i>number</i>'
 </p>
+<p>
+To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most
+recent message to each specific device address is repeated: the next message sent there will cancel any pending repeats.
+</p>
 </script>
 
 <script type="text/javascript">
@@ -183,10 +201,13 @@ Not all devices support all commands. Less common commands include 'Toggle' and 
         defaults: {
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"msg", required:true },
-            topic: { value:"", validate:function (t) {
-                return this.topicSource == "msg" || t.length > 0
-            }
+            topicSource: {value:"msg", required:true},
+            retransmit: {value: "none"},
+            retransmitInterval: {value: 20,
+                validate:function (i) {return i >= 10}
+            },
+            topic: {value:"",
+                validate:function (t) {return this.topicSource == "msg" || t.length > 0}
             }
         },
         color:"BurlyWood",
@@ -202,8 +223,26 @@ Not all devices support all commands. Less common commands include 'Toggle' and 
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function() {
-            var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
+            var topicSource = $("#node-input-topicSource"),
+                    retransmit = $("#node-input-retransmit");
+            retransmit.change(function () {
+                var mode = retransmit.find("option:selected").val();
+                if (mode === "none") {
+                    $("#node-input-row-retransmitInterval").hide();
+                } else {
+                    if (mode === "once") {
+                        $("#node-input-retransmitInterval-caption").text("Delay");
+                        $("#node-input-retransmitInterval-units").text("seconds");
+                    } else {
+                        $("#node-input-retransmitInterval-caption").text("Interval");
+                        $("#node-input-retransmitInterval-units").text("minutes");
+                    }
+                    $("#node-input-row-retransmitInterval").show();
+                }
+            });
+            retransmit.val(this.retransmit);
+            retransmit.change();
+            topicSource.change(function () {
                 var id = topicSource.find("option:selected").val();
                 if (id == "node") {
                     $("#node-input-row-topic").show();
