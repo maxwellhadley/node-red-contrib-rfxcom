@@ -288,6 +288,16 @@ module.exports = function (RED) {
         }
     };
 
+// Purge retransmission timers associated with this node
+   var purgeTimers = function () {
+       var tx;
+       for (tx in this.retransmissions) {
+           if (this.retransmissions.hasOwnProperty(tx)) {
+               this.clearRetransmission(this.retransmissions[tx]);
+               }
+           }
+       };
+
 // The config node holding the PT2262 deviceList object
     function RfxPT2262DeviceList(n) {
         RED.nodes.createNode(this, n);
@@ -295,7 +305,7 @@ module.exports = function (RED) {
         this.devices = n.devices;
     }
 
-// Register the config node
+// Register the PT2262 config node
     RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
 
 // An input node for listening to messages from lighting remote controls
@@ -889,6 +899,17 @@ module.exports = function (RED) {
 
         var node = this;
         node.retransmissions = {};
+        node.mustDelete = false;
+        if (node.retransmit === "once") {
+            node.setRetransmission = setTimeout;
+            node.retransmitTime = 1000*node.retransmitInterval;
+            node.clearRetransmission = clearTimeout;
+            node.mustDelete = true;
+        } else if (node.retransmit === "repeat") {
+            node.setRetransmission = setInterval;
+            node.retransmitTime = 60*1000*node.retransmitInterval;
+            node.clearRetransmission = clearInterval;
+        }
 
         // Parse a string to obtain the normalised representation of the 'level' associated with a dimming
         // command. The result is either an integer in the range levelRange[0]..levelRange[1], '+' (meaning increase
@@ -1020,22 +1041,15 @@ module.exports = function (RED) {
                                                 payload = msg.payload, range = levelRange, key = topic;
                                             return function () {
                                                 parseCommand(protocol, address, payload, range);
-                                                if (node.retransmit === "once") {
+                                                if (node.mustDelete) {
                                                     delete(node.retransmissions[key]);
                                                 }
                                             };
                                         }());
-                                        if (node.retransmit === "once") {
-                                            if (node.retransmissions.hasOwnProperty(topic)) {
-                                                clearTimeout(node.retransmissions[topic]);
-                                            }
-                                            node.retransmissions[topic] = setTimeout(lastCommand, 1000*node.retransmitInterval);
-                                        } else if (node.retransmit === "repeat") {
-                                            if (node.retransmissions.hasOwnProperty(topic)) {
-                                                clearInterval(node.retransmissions[topic]);
-                                            }
-                                            node.retransmissions[topic] = setInterval(lastCommand, 60*1000*node.retransmitInterval);
+                                        if (node.retransmissions.hasOwnProperty(topic)) {
+                                            node.clearRetransmission(node.retransmissions[topic]);
                                         }
+                                        node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
                                     }
                                 } catch (exception) {
                                     if (exception.message.indexOf("is not a function") >= 0) {
@@ -1060,22 +1074,7 @@ module.exports = function (RED) {
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
 
 // Remove all retransmission timers on close
-    RfxLightsOutNode.prototype.close = function () {
-        var tx;
-        if (this.retransmit === "once") {
-            for (tx in this.retransmissions) {
-                if (this.retransmissions.hasOwnProperty(tx)) {
-                    clearTimeout(this.retransmissions[tx]);
-                }
-            }
-        } else if (this.retransmit === "repeat") {
-            for (tx in this.retransmissions) {
-                if (this.retransmissions.hasOwnProperty(tx)) {
-                    clearInterval(this.retransmissions[tx]);
-                }
-            }
-        }
-    };
+    RfxLightsOutNode.prototype.close = purgeTimers;
 
     // An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
