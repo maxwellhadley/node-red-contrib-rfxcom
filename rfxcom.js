@@ -587,11 +587,26 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource || "msg";
         this.topic = stringToParts(n.topic);
+        this.retransmit = n.retransmit || "none";
+        this.retransmitInterval = n.retransmitInterval || 20;
         this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        node.retransmissions = {};
+        node.mustDelete = false;
+        if (node.retransmit === "once") {
+            node.setRetransmission = setTimeout;
+            node.retransmitTime = 1000*node.retransmitInterval;
+            node.clearRetransmission = clearTimeout;
+            node.mustDelete = true;
+        } else if (node.retransmit === "repeat") {
+            node.setRetransmission = setInterval;
+            node.retransmitTime = 60*1000*node.retransmitInterval;
+            node.clearRetransmission = clearInterval;
+        }
+
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
@@ -642,6 +657,9 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
+
+// Remove all retransmission timers on close
+    RfxPT2262OutNode.prototype.close = purgeTimers;
 
 // An input node for listening to messages from (mainly weather) sensors
     function RfxWeatherSensorNode(n) {
