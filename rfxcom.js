@@ -221,7 +221,6 @@ module.exports = function (RED) {
         }
     };
 
-
 // Convert a string - the rawTopic - into a normalised form (an Array) so that checkTopic() can easily compare
 // a topic against a pattern
     var normaliseTopic = function (rawTopic) {
@@ -229,7 +228,6 @@ module.exports = function (RED) {
         if (rawTopic === undefined || typeof rawTopic !== "string") {
             return [];
         }
-//        parts = rawTopic.split("/");
         parts = stringToParts(rawTopic);
         if (parts.length >= 1) {
             parts[0] = parts[0].trim().replace(/ +/g, '_').toUpperCase();
@@ -288,6 +286,17 @@ module.exports = function (RED) {
         }
     };
 
+// Purge retransmission timers associated with this node and delete them to avoid leaking memory
+    var purgeTimers = function () {
+           var tx;
+           for (tx in this.retransmissions) {
+               if (this.retransmissions.hasOwnProperty(tx)) {
+                   this.clearRetransmission(this.retransmissions[tx]);
+                   delete this.retransmissions[tx];
+               }
+           }
+       };
+
 // The config node holding the PT2262 deviceList object
     function RfxPT2262DeviceList(n) {
         RED.nodes.createNode(this, n);
@@ -295,7 +304,7 @@ module.exports = function (RED) {
         this.devices = n.devices;
     }
 
-// Register the config node
+// Register the PT2262 config node
     RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
 
 // An input node for listening to messages from lighting remote controls
@@ -577,11 +586,28 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource || "msg";
         this.topic = stringToParts(n.topic);
+        this.retransmit = n.retransmit || "none";
+        this.retransmitInterval = n.retransmitInterval || 20;
         this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        node.retransmissions = {};
+        node.mustDelete = false;
+        if (node.retransmit === "once") {
+            // Uses a Timeout: period in seconds
+            node.setRetransmission = setTimeout;
+            node.retransmitTime = 1000*node.retransmitInterval;
+            node.clearRetransmission = clearTimeout;
+            node.mustDelete = true;
+        } else if (node.retransmit === "repeat") {
+            // Uses an Interval: period in miutes
+            node.setRetransmission = setInterval;
+            node.retransmitTime = 60*1000*node.retransmitInterval;
+            node.clearRetransmission = clearInterval;
+        }
+
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
@@ -591,30 +617,65 @@ module.exports = function (RED) {
                     releasePort(node);
                 });
                 node.on("input", function (msg) {
-                    var topic, db;
+                    var db, topic, lastCommand, rawData = null, pulseWidth = null;
+                    // Get the topic from either the node or the message
                     if (node.topicSource === "node" && node.topic !== undefined) {
                         topic = node.topic;
                     } else if (msg.topic !== undefined) {
                         topic = stringToParts(msg.topic);
-                    } else {
-                        if (msg.payload === undefined) {
-                            // If the message has no topic and no payload, send the data in the property 'raw'
-                            if (msg.raw !== undefined && msg.raw.data !== undefined) {
-                                node.rfxtrx.transmitters['PT2262'].tx.sendData(msg.raw.data, msg.raw.pulseWidth);
-                                return;
-                            }
-                        } else {
-                            node.warn("rfx-PT2262-out: missing topic");
-                        }
-                        return;
                     }
-                    db = node.devices.filter(function (entry) {
-                            return msg.payload === entry.payload && topic.length === entry.device.length && checkTopic(topic, entry.device);
+                    if (topic !== undefined && msg.payload !== undefined) {
+                        // Lookup the topic/payload combination in the device list
+                        db = node.devices.filter(function (entry) {
+                            return msg.payload == entry.payload &&
+                                   topic.length === entry.device.length &&
+                                   checkTopic(topic, entry.device);
                         });
-                    if (db.length === 1) {
-                        node.rfxtrx.transmitters['PT2262'].tx.sendData(db[0].rawData, db[0].pulseWidth);
-                    } else {
-                        node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
+                        if (db.length >= 1) {
+                            // If multiple matches use the first
+                            rawData = db[0].rawData;
+                            pulseWidth = db[0].pulseWidth;
+                        } else {
+                            node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
+                        }
+                    } else if (msg.raw !== undefined && msg.raw.data !== undefined) {
+                        // No topic or no payload or neither: check for raw data in the message
+                        rawData = msg.raw.data;
+                        if (msg.raw.pulseWidth !== undefined) {
+                            pulseWidth = msg.raw.pulseWidth;
+                        }
+                        if (topic === undefined) {
+                            topic = ["__none__"];
+                        }
+                    }
+                    if (rawData !== null) {
+                        try {
+                            // Send the command for the first time
+                            node.rfxtrx.transmitters['PT2262'].tx.sendData(rawData, pulseWidth);
+                            // If we reach this point, the command did not throw an error. Check if should retransmit
+                            // it & set the Timeout or Interval as appropriate
+                            if (node.retransmit != "none") {
+                                // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                                // function context, where the function lastCommand() can find them
+                                topic = topic.join("/");
+                                lastCommand = (function () {
+                                    var _rawData = rawData, _pulseWidth = pulseWidth, key = topic;
+                                    return function () {
+                                        node.rfxtrx.transmitters['PT2262'].tx.sendData(_rawData, _pulseWidth);
+                                        if (node.mustDelete) {
+                                            delete(node.retransmissions[key]);
+                                        }
+                                    };
+                                }());
+                                if (node.retransmissions.hasOwnProperty(topic)) {
+                                    node.clearRetransmission(node.retransmissions[topic]);
+                                }
+                                node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+
+                            }
+                        } catch (exception) {
+                            node.warn(exception.message);
+                        }
                     }
                 });
             }
@@ -624,6 +685,9 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
+
+// Remove all retransmission timers on close
+    RfxPT2262OutNode.prototype.close = purgeTimers;
 
 // An input node for listening to messages from (mainly weather) sensors
     function RfxWeatherSensorNode(n) {
@@ -982,10 +1046,26 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource || "msg";
         this.topic = stringToParts(n.topic);
+        this.retransmit = n.retransmit || "none";
+        this.retransmitInterval = n.retransmitInterval || 20;
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        node.retransmissions = {};
+        node.mustDelete = false;
+        if (node.retransmit === "once") {
+            // Uses a Timeout: period in seconds
+            node.setRetransmission = setTimeout;
+            node.retransmitTime = 1000*node.retransmitInterval;
+            node.clearRetransmission = clearTimeout;
+            node.mustDelete = true;
+        } else if (node.retransmit === "repeat") {
+            // Uses an Interval: period in minutes
+            node.setRetransmission = setInterval;
+            node.retransmitTime = 60*1000*node.retransmitInterval;
+            node.clearRetransmission = clearInterval;
+        }
 
         // Parse a string to obtain the normalised representation of the 'level' associated with a dimming
         // command. The result is either an integer in the range levelRange[0]..levelRange[1], '+' (meaning increase
@@ -1026,39 +1106,31 @@ module.exports = function (RED) {
 
         // Parses msg.payload looking for lighting command messages, calling the corresponding function in the
         // node-rfxcom API to implement it. All parameter checking is delegated to this API. If no valid command is
-        // recognised, does nothing (quietly).
+        // recognised, does nothing (quietly) - but the transmitter may throw an Error which it does not catch
         var parseCommand = function (protocolName, address, str, levelRange) {
             var level, mood;
-            try {
-                if (/on/i.test(str) || str === 1) {
-                    node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
-                } else if (/off/i.test(str) || str === 0) {
-                    node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
-                } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
-                    level = parseDimLevel(str, levelRange);
-                    if (isFinite(level)) {
-                        node.rfxtrx.transmitters[protocolName].tx.setLevel(address, level);
-                    } else if (level === '+') {
-                        node.rfxtrx.transmitters[protocolName].tx.increaseLevel(address);
-                    } else if (level === '-') {
-                        node.rfxtrx.transmitters[protocolName].tx.decreaseLevel(address);
-                    }
-                } else if (/mood/i.test(str)) {
-                    mood = parseInt(/([0-9]+)/.exec(str));
-                    if (isFinite(mood)) {
-                        node.rfxtrx.transmitters[protocolName].tx.setMood(address, mood);
-                    }
-                } else if (/toggle/i.test(str)) {
-                    node.rfxtrx.transmitters[protocolName].tx.toggleOnOff(address);
-                } else if (/program|learn/i.test(str)) {
-                    node.rfxtrx.transmitters[protocolName].tx.program(address);
+            if (/on/i.test(str) || str == 1) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
+            } else if (/off/i.test(str) || str == 0) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
+            } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
+                level = parseDimLevel(str, levelRange);
+                if (isFinite(level)) {
+                    node.rfxtrx.transmitters[protocolName].tx.setLevel(address, level);
+                } else if (level === '+') {
+                    node.rfxtrx.transmitters[protocolName].tx.increaseLevel(address);
+                } else if (level === '-') {
+                    node.rfxtrx.transmitters[protocolName].tx.decreaseLevel(address);
                 }
-            } catch (exception) {
-                if (exception.arguments !== undefined) {
-                    node.warn("Input '" + str + "': generated command '" + exception.arguments[0] + "' not supported by device");
-                } else {
-                    node.warn(exception);
+            } else if (/mood/i.test(str)) {
+                mood = parseInt(/([0-9]+)/.exec(str));
+                if (isFinite(mood)) {
+                    node.rfxtrx.transmitters[protocolName].tx.setMood(address, mood);
                 }
+            } else if (/toggle/i.test(str)) {
+                node.rfxtrx.transmitters[protocolName].tx.toggleOnOff(address);
+            } else if (/program|learn/i.test(str)) {
+                node.rfxtrx.transmitters[protocolName].tx.program(address);
             }
         };
 
@@ -1072,7 +1144,7 @@ module.exports = function (RED) {
                 node.on("input", function (msg) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
-                    var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange;
+                    var path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange, lastCommand, topic;
                     if (node.topicSource === "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
@@ -1111,7 +1183,38 @@ module.exports = function (RED) {
                                     break;
                             }
                             if (levelRange !== undefined) {
-                                parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, levelRange);
+                                try {
+                                    // Send the command for the first time
+                                    parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, levelRange);
+                                    // If we reach this point, the command did not throw an error. Check if we should
+                                    // retransmit it & set the Timeout or Interval as appropriate
+                                    if (node.retransmit != "none") {
+                                        topic = path.join("/");
+                                        // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                                        // function context, where the function lastCommand() can find them
+                                        lastCommand = (function () {
+                                            var protocol = protocolName, address = deviceAddress.concat(unitAddress),
+                                                payload = msg.payload, range = levelRange, key = topic;
+                                            return function () {
+                                                parseCommand(protocol, address, payload, range);
+                                                if (node.mustDelete) {
+                                                    delete(node.retransmissions[key]);
+                                                }
+                                            };
+                                        }());
+                                        if (node.retransmissions.hasOwnProperty(topic)) {
+                                            node.clearRetransmission(node.retransmissions[topic]);
+                                        }
+                                        node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+                                    }
+                                } catch (exception) {
+                                    if (exception.message.indexOf("is not a function") >= 0) {
+                                        node.warn("Input '" + msg.payload + "' generated command '" +
+                                            exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                                    } else {
+                                        node.warn(exception);
+                                    }
+                                }
                             }
                         }
                     } catch (exception) {
@@ -1125,6 +1228,9 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
+
+// Remove all retransmission timers on close
+    RfxLightsOutNode.prototype.close = purgeTimers;
 
     // An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
@@ -1204,11 +1310,7 @@ module.exports = function (RED) {
                     node.rfxtrx.transmitters[protocolName].tx.chime(address);
                 }
             } catch (exception) {
-                if (exception.arguments !== undefined) {
-                    node.warn("Input '" + str + "': generated command '" + exception.arguments[0] + "' not supported by device");
-                } else {
-                    node.warn(exception);
-                }
+                node.warn(exception);
             }
         };
         
