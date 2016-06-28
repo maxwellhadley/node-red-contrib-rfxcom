@@ -201,12 +201,12 @@ recent message to each specific device address is repeated: the next message sen
         defaults: {
             name: {name:""},
             port: {type:"rfxtrx-port", required:true},
-            topicSource: {value:"msg", required:true},
-            retransmit: {value: "none"},
-            retransmitInterval: {value: 20,
+            topicSource:{value:"msg", required:true},
+            retransmit:{value: "none"},
+            retransmitInterval:{value: 20,
                 validate:function (i) {return i >= 10}
             },
-            topic: {value:"",
+            topic:{value:"",
                 validate:function (t) {return this.topicSource == "msg" || t.length > 0}
             }
         },
