@@ -945,8 +945,8 @@ module.exports = function (RED) {
         node.heartbeats = {};
         node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone ailent
         node.HEARTBEATDELAY[rfxcom.security1.X10_DOOR] = 90;
-        node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
         node.HEARTBEATDELAY[rfxcom.security1.X10_PIR] = 90;
+        node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_PIR] = 20;
 
         if (node.rfxtrxPort) {
@@ -957,8 +957,9 @@ module.exports = function (RED) {
                     releasePort(node);
                 });
                 node.rfxtrx.on("security1", function (evt) {
+                    var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id};
                     if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id, status: {rssi: evt.rssi}};
+                        msg.status = {rssi: evt.rssi};
                         switch (evt.subtype) {
                             case rfxcom.security1.KD101:
                             case rfxcom.security1.SA30:
@@ -982,10 +983,12 @@ module.exports = function (RED) {
                                 }
                                 break;
                             // These detectors send "heartbeat" messages at more or less regular intervals
-                            case rfxcom.security1.X10_DOOR:
                             case rfxcom.security1.POWERCODE_DOOR:
-                            case rfxcom.security1.X10_PIR:
                             case rfxcom.security1.POWERCODE_PIR:
+                            case rfxcom.security1.X10_DOOR:
+                            case rfxcom.security1.X10_PIR:
+                                msg.status.battery = evt.batteryLevel;
+                                msg.status.tampered = Boolean(evt.tampered);
                                 // Clear any existing heartbeat timeout & set a new one
                                 if (node.heartbeats.hasOwnProperty(msg.topic)) {
                                     clearInterval(node.heartbeats[msg.topic]);
@@ -1004,8 +1007,6 @@ module.exports = function (RED) {
                                     }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
                                 }());
                                 node.heartbeats[msg.topic].unref();
-                                msg.status.battery = evt.batteryLevel;
-                                msg.status.tampered = Boolean(evt.tampered);
                                 if (evt.deviceStatus === rfxcom.security.ALARM) {
                                     msg.payload = "Alarm";
                                 } else if (evt.deviceStatus === rfxcom.security.MOTION) {

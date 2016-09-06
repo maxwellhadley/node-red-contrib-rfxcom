@@ -2,8 +2,7 @@ node-red-contrib-rfxcom
 ========================
 
 A collection of <a href="http://nodered.org" target="_new">Node-RED</a> nodes to send and receive home automation
-commands and data using an
-[RFXCOM RFXtrx433E](http://www.rfxcom.com/epages/78165469.sf/en_GB/?ObjectPath=/Shops/78165469/Products/14103)
+commands and data using an [RFXCOM RFXtrx433E](http://www.rfxcom.com/epages/78165469.sf/en_GB/?ObjectPath=/Shops/78165469/Products/14103)
 home automation controller. Also compatible with the older RFXtrx433 transceivers.
 
 Install
@@ -37,9 +36,9 @@ moisture sensors
 
 **rfx-meter** Receives messages from wireless energy monitors such as OWL
 
-**rfx-detector** Receives messages from wireless intruder and smoke detectors. **This node and the associated software
-must not be used in situations where loss of or damage to property, or the avoidance of injury or death, may depend on
-its correct operation**
+**rfx-detector** Receives messages from wireless intruder and smoke detectors.
+**This node and the associated software must not be used in situations where the avoidance of damage to 
+or loss of property, or protection from risk of injury or death, may depend on its correct operation.**
 
 **rfx-PT2262-in** Receives messages from devices using the PT2262 chipset. Many no-name remote controls and alarm
 systems use these chips

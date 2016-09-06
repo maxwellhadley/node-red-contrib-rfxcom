@@ -560,8 +560,8 @@ is an array
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"all", required:true },
             topic: { value:"", validate:function(t) {
-                return this.topicSource == "all" || t.length > 0
-            }
+                    return this.topicSource == "all" || t.length > 0
+                }
             }
         },
         color:"BurlyWood",
@@ -628,7 +628,7 @@ Listens for messages from wireless intruder and smoke detectors using an RFXtrx4
 <li>Suitably equipped detectors will send a "Tamper" payload when the anti-tamper circuit is triggered.</li>
 <li>X10 and some types of Visonic PowerCode detectors report their status at regular intervals. If these reports stop,
 the node sends regular output messages with a "Silent" payload. The node will also send an output message with a "Battery
-Low" payload if the detector reports this.</li>
+Low" payload if the detector so reports in a status message.</li>
 </ul>
 <p>
 The node can either receive messages from any address, or only from a restricted subset of adresses
@@ -636,8 +636,8 @@ matching a topic template. For example, 'KD101' would receive messages only from
 smoke detectors.
 </p>
 <p>
-<b>This node and the associated software must not be used in situations where loss of or damage to property, or the
-avoidance of injury or death, may depend on its correct operation.</b>
+<b>This node and the associated software must not be used in situations where the avoidance of damage to
+or loss of property, or protection from risk of injury or death, may depend on its correct operation.</b>
 </p>
 </script>
 
@@ -833,7 +833,7 @@ avoidance of injury or death, may depend on its correct operation.</b>
         <input type="text" id="node-input-topic" placeholder="PT2262/address">
     </div>
     <div class="form-row node-input-deviceList">
-        <label for="node-input-deviceList"><i class="icon-bullhorn"></i> Devices</label>
+        <label for="node-input-deviceList"><i class="fa fa-list"></i> Devices</label>
         <input type="text" id="node-input-deviceList">
     </div>
     <div class="form-row">
