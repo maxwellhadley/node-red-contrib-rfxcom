@@ -233,10 +233,11 @@ module.exports = function (RED) {
             parts[0] = parts[0].trim().replace(/ +/g, '_').toUpperCase();
         }
         if (parts.length >= 2) {
-            // handle housecodes > "F" as a special case (X10, ARC)
-            if (isNaN(parts[1])) {
+            // handle housecodes as a special case (X10, ARC, etc)
+            if (/^[A-Z]$/i.test(parts[1])) {
                 parts[1] = parseInt(parts[1].trim(), 36);
             } else {
+                // ID is always in hexadecimal
                 parts[1] = parseInt(parts[1].trim(), 16);
             }
         }
@@ -245,9 +246,10 @@ module.exports = function (RED) {
                 return parts.slice(0, 2);
             }
             // handle Blyss groupcodes as a special case
-            if (isNaN(parts[2])) {
+            if (/^[A-Z]$/i.test(parts[2])) {
                 parts[2] = parseInt(parts[2].trim(), 36);
             } else {
+                // unitcodes always decimal
                 parts[2] = parseInt(parts[2].trim(), 10);
             }
         }
@@ -255,6 +257,7 @@ module.exports = function (RED) {
             if (/^0+$|all|group|\+/i.test(parts[3])) {
                 return parts.slice(0, 3);
             }
+            // Blyss unitcodes always decimal
             parts[3] = parseInt(parts[3].trim(), 10);
         }
         // The return is always [ string, number, number, number ] - all parts optional
