@@ -241,8 +241,8 @@ module.exports = function (RED) {
             }
         }
         if (parts.length >= 3) {
-            if (/0|all|group|\+/i.test(parts[2])) {
-                return parts.slice(0, 1);
+            if (/^0+$|all|group|\+/i.test(parts[2])) {
+                return parts.slice(0, 2);
             }
             // handle Blyss groupcodes as a special case
             if (isNaN(parts[2])) {
@@ -252,8 +252,8 @@ module.exports = function (RED) {
             }
         }
         if (parts.length >= 4) {
-            if (/0|all|group|\+/i.test(parts[3])) {
-                return parts.slice(0, 2);
+            if (/^0+$|all|group|\+/i.test(parts[3])) {
+                return parts.slice(0, 3);
             }
             parts[3] = parseInt(parts[3].trim(), 10);
         }
