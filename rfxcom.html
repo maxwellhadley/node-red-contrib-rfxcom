@@ -443,7 +443,7 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
 <!-- Help text for rfx-sensor -->
 <script type="text/x-red" data-help-name="rfx-sensor">
 <p>
-Listens for measurement messages from temperature and other weather sensors using an RFXtrx433 transceiver
+Listens for measurement messages from thermometers and various types of weather sensor using an RFXtrx433 transceiver
 </p>
 <p>The output message topic is the type and ID of the sensor. The output message payload is an object containing the
 sensor measurement types, values & units of measurement, with status information.
@@ -460,7 +460,8 @@ and 'TH1/0xE801' would receive only messages from the sensor described above.
 </p>
 <p>
 Depending on the sensor type, the available data may include temperature, humidity, barometric pressure, UV index, wind speed
-& direction, and rainfall.
+& direction, and rainfall. For the Maverick ET-732 BBQ thermometer, <i>payload.temperature.value[0]</i> is the meat sensor &
+<i>payload.temperature.value[1]</i> is the BBQ sensor.
 </p>
 </script>
 

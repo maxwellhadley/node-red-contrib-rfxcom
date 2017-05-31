@@ -32,7 +32,7 @@ switches, and some types of doorbell.
 **rfx-doorbell-out** Sends messages to wireless door chimes
 
 **rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors. Also handles soil
-moisture sensors
+moisture sensors and the maverick ET-732 BBQ thermometer.
 
 **rfx-meter** Receives messages from wireless energy monitors such as OWL
 

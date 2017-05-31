@@ -242,7 +242,7 @@ module.exports = function (RED) {
             }
         }
         if (parts.length >= 3) {
-            if (/^0+$|all|group|\+/i.test(parts[2])) {
+            if (/^0+$|all|group|^\+$/i.test(parts[2])) {
                 return parts.slice(0, 2);
             }
             // handle Blyss groupcodes as a special case
@@ -254,7 +254,7 @@ module.exports = function (RED) {
             }
         }
         if (parts.length >= 4) {
-            if (/^0+$|all|group|\+/i.test(parts[3])) {
+            if (/^0+$|all|group|^\+$/i.test(parts[3])) {
                 return parts.slice(0, 3);
             }
             // Blyss unitcodes always decimal
@@ -760,6 +760,9 @@ module.exports = function (RED) {
                 showConnectionStatus(node);
                 node.on("close", function () {
                     releasePort(node);
+                });
+                node.rfxtrx.on("bbq1", function (evt) {
+                    sendWeatherMessage(evt, {topic:rfxcom.bbq1[evt.subtype] + "/" + evt.id})
                 });
                 for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
                     node.rfxtrx.on("temprain" + i, function(evt) {
