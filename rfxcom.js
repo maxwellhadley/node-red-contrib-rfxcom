@@ -816,6 +816,7 @@ module.exports = function (RED) {
     RfxWeatherSensorNode.prototype.close = function () {
         var i;
         if (this.rfxtrx) {
+            this.rfxtrx.removeAllListeners("bbq1");
             for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
                 this.rfxtrx.removeAllListeners("temprain" + i);
             }
