@@ -176,18 +176,20 @@ Sends commands to remote lighting control devices using an RFXtrx433 transceiver
 same device address can be used for all messages.
 </p>
 <p>
-Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the family
-of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit address</b> is the unit or
-channel number of the addressed device. Channel 0 or '+' is used for group switching (or the equivalent) where supported.
+Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the
+family of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit
+address</b> is the unit or channel number of the addressed device. Channel 0 or '+' is used for group switching (or the
+equivalent) where supported.
 </p>
 <p>
 For example 'AC/0x1ef1ce/4' is a HomeEasy switched socket paired with address 0x1ef1ce on channel 4, and 'X10/D/1' is
 an X10 light switch with house code D and unit code 1.
 </p>
 <p>
-Typical commands are 'On' & 'Off' (or equivalently 1 & 0); 'Bright' or 'Dim+' to increase brightness; 'Dim' or 'Dim-' to
-reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value between 0 and 1) to set the brightness to a given level.
-Not all devices support all commands. Less common commands include 'Toggle' and 'Mood <i>number</i>'
+Typical commands are 'On' & 'Off' (or equivalently 1 & 0, or <b>true</b> & <b>false</b>); 'Bright' or 'Dim+' to increase
+brightness; 'Dim' or 'Dim-' to reduce brightness; 'level <i>percentage</i>%' or 'level <i>number</i>' (where <i>number</i>
+is a value between 0 and 1) to set the brightness. Not all devices support all commands. Less common commands include
+'Toggle' and 'Mood <i>number</i>'. Command messages from an alexa home node are also accepted.
 </p>
 <p>
 To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most

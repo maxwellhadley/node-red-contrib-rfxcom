@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2014, 2015, Maxwell Hadley
+    Copyright (c) 2014 .. 2017, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -1075,34 +1075,50 @@ module.exports = function (RED) {
             node.clearRetransmission = clearInterval;
         }
 
-        // Parse a string to obtain the normalised representation of the 'level' associated with a dimming
+        // Parse the message payload to obtain the normalised representation of the 'level' associated with a dimming
         // command. The result is either an integer in the range levelRange[0]..levelRange[1], '+' (meaning increase
         // the brightness level), or '-' (meaning reduce it). An input numeric value should be in the range 0..1, or
-        // equivalently in the range 0%..100%
-        // Called from parseCommand
-        var parseDimLevel = function (str, levelRange) {
-            // An empty level range means accept Dim/Bright or Dim-/Dim+ commands only
-            if (levelRange.length === 0 || /[0-9]+/.test(str) === false) {
-                if (/dim.*\+/i.test(str)) { // 'dim+' means 'bright'
-                    return "+";
-                } else if (/dim.*-/i.test(str)) {
-                    return "-";
-                } else if (/dim/i.test(str)) {
-                    return "-";
-                } else if (/bright/i.test(str)) {
-                    return "+";
+        // equivalently in the range 0%..100%, unless it is associated with an alexaCommand. In that case, an input
+        // value in the range 0 to 100 is interpreted as a percentage (SetPercentageRequest). The value supplied with
+        // IncrementPercentageRequest & DecrementPercentageRequest is ignored.
+        // An empty level range means this device accepts Dim/Bright or Dim-/Dim+ commands only
+        // Called only from parseCommand
+        var parseDimLevel = function (payload, alexaCommand, levelRange) {
+            var value = NaN;
+            if (typeof alexaCommand === "string") {
+                if (alexaCommand === "SetPercentageRequest") {
+                    value = (payload.value || payload)/100;
+                    if (levelRange.length === 0) {
+                        return value >= 0.5 ? "+" : "-"
+                    }
+                } else if (alexaCommand === "IncrementPercentageRequest") {
+                    return "+"
+                } else if (alexaCommand === "DecrementPercentageRequest") {
+                    return "-"
                 }
-            }
-            if (/[0-9]+/.test(str) === false) {
-                if (/\+/.test(str)) {
-                    return "+";
-                } else if (/-/.test(str)) {
-                    return "-";
+            } else {
+                if (levelRange.length === 0 || /[0-9]+/.test(payload) === false) {
+                    if (/dim.*\+/i.test(payload)) { // 'dim+' means 'bright'
+                        return "+";
+                    } else if (/dim.*-/i.test(payload)) {
+                        return "-";
+                    } else if (/dim/i.test(payload)) {
+                        return "-";
+                    } else if (/bright/i.test(payload)) {
+                        return "+";
+                    }
                 }
-            }
-            var value = parseFloat(/[0-9]+(\.[0-9]*)?/.exec(str)[0]);
-            if (str.match(/[0-9] *%/)) {
-                value = value/100;
+                if (/[0-9]+/.test(payload) === false) {
+                    if (/\+/.test(payload)) {
+                        return "+";
+                    } else if (/-/.test(payload)) {
+                        return "-";
+                    }
+                }
+                value = parseFloat(/[0-9]+(\.[0-9]*)?/.exec(payload)[0]);
+                if (payload.match(/[0-9] *%/)) {
+                    value = value/100;
+                }
             }
             value = Math.max(0, Math.min(1, value));
             if (levelRange === undefined) {
@@ -1112,17 +1128,14 @@ module.exports = function (RED) {
             }
         };
 
-        // Parses msg.payload looking for lighting command messages, calling the corresponding function in the
-        // node-rfxcom API to implement it. All parameter checking is delegated to this API. If no valid command is
-        // recognised, does nothing (quietly) - but the transmitter may throw an Error which it does not catch
-        var parseCommand = function (protocolName, address, str, levelRange) {
+        // Parses msg.payload looking for lighting command messages (including Alexa-home command messages), calling
+        // the corresponding function in the node-rfxcom API to implement it. All parameter checking is delegated to
+        // that API. If no valid command is recognised, this does nothing (quietly), but if the transmitter throws an
+        // Error this function does not catch it
+        var parseCommand = function (protocolName, address, payload, alexaCommand, levelRange) {
             var level, mood;
-            if (/on/i.test(str) || str == 1) {
-                node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
-            } else if (/off/i.test(str) || str == 0) {
-                node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
-            } else if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(str)) {
-                level = parseDimLevel(str, levelRange);
+            if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(payload) || /Percentage/i.test(alexaCommand)) {
+                level = parseDimLevel(payload, alexaCommand, levelRange);
                 if (isFinite(level)) {
                     node.rfxtrx.transmitters[protocolName].tx.setLevel(address, level);
                 } else if (level === '+') {
@@ -1130,14 +1143,18 @@ module.exports = function (RED) {
                 } else if (level === '-') {
                     node.rfxtrx.transmitters[protocolName].tx.decreaseLevel(address);
                 }
-            } else if (/mood/i.test(str)) {
-                mood = parseInt(/([0-9]+)/.exec(str));
+            } else if (/on/i.test(payload) || payload === 1 || payload === true) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOn(address);
+            } else if (/off/i.test(payload) || payload === 0 || payload === false) {
+                node.rfxtrx.transmitters[protocolName].tx.switchOff(address);
+            } else if (/mood/i.test(payload)) {
+                mood = parseInt(/([0-9]+)/.exec(payload));
                 if (isFinite(mood)) {
                     node.rfxtrx.transmitters[protocolName].tx.setMood(address, mood);
                 }
-            } else if (/toggle/i.test(str)) {
+            } else if (/toggle/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].tx.toggleOnOff(address);
-            } else if (/program|learn/i.test(str)) {
+            } else if (/program|learn/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].tx.program(address);
             }
         };
@@ -1193,18 +1210,19 @@ module.exports = function (RED) {
                             if (levelRange !== undefined) {
                                 try {
                                     // Send the command for the first time
-                                    parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, levelRange);
+                                    parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, msg.command, levelRange);
                                     // If we reach this point, the command did not throw an error. Check if we should
                                     // retransmit it & set the Timeout or Interval as appropriate
-                                    if (node.retransmit != "none") {
+                                    if (node.retransmit !== "none") {
                                         topic = path.join("/");
                                         // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
                                         // function context, where the function lastCommand() can find them
                                         lastCommand = (function () {
                                             var protocol = protocolName, address = deviceAddress.concat(unitAddress),
-                                                payload = msg.payload, range = levelRange, key = topic;
+                                                payload = msg.payload, alexaCommand = msg.command,
+                                                range = levelRange, key = topic;
                                             return function () {
-                                                parseCommand(protocol, address, payload, range);
+                                                parseCommand(protocol, address, payload, alexaCommand, range);
                                                 if (node.mustDelete) {
                                                     delete(node.retransmissions[key]);
                                                 }
@@ -1217,7 +1235,8 @@ module.exports = function (RED) {
                                     }
                                 } catch (exception) {
                                     if (exception.message.indexOf("is not a function") >= 0) {
-                                        node.warn("Input '" + msg.payload + "' generated command '" +
+                                        var alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
+                                        node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
                                             exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
                                     } else {
                                         node.warn(exception);
