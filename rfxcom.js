@@ -789,9 +789,9 @@ module.exports = function (RED) {
                         sendWeatherMessage(evt, {topic:rfxcom.tempHumBaro1[evt.subtype] + "/" + evt.id})
                     });
                 }
-                for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
+                for (i = 1; i < rfxcom.rain1.length; i++) {
                     node.rfxtrx.on("rain" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.temperatureRain1[evt.subtype] + "/" + evt.id})
+                        sendWeatherMessage(evt, {topic:rfxcom.rain1[evt.subtype] + "/" + evt.id})
                     });
                 }
                 for (i = 1; i < rfxcom.wind1.length; i++) {
