@@ -320,6 +320,193 @@ module.exports = function (RED) {
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        this.lighting1Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode;
+            if (evt.commandNumber === 5 || evt.commandNumber === 6) {
+                msg.topic = msg.topic + "/+";
+            } else {
+                msg.topic = msg.topic + "/" + evt.unitcode;
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                switch (evt.commandNumber) {
+                    case 0 :
+                    case 5 :
+                        msg.payload = "Off";
+                        break;
+
+                    case 1 :
+                    case 6 :
+                        msg.payload = "On";
+                        break;
+
+                    case 2 :
+                        msg.payload = "Dim";
+                        break;
+
+                    case 3 :
+                        msg.payload = "Bright";
+                        break;
+
+                    case 7 :    // The ARC 'Chime' command - handled in rfx-doorbells so ignore it here
+                        return;
+
+                    default:
+                        node.warn("rfx-lights-in: unrecognised Lighting1 command " + evt.commandNumber.toString(16));
+                        return;
+                }
+                node.send(msg);
+            }
+        };
+        this.lighting2Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.lighting2[evt.subtype] + "/" + evt.id;
+            if (evt.commandNumber > 2) {
+                msg.topic = msg.topic + "/+";
+            } else {
+                msg.topic = msg.topic + "/" + evt.unitcode;
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                switch (evt.commandNumber) {
+                    case 0:
+                    case 3:
+                        msg.payload = "Off";
+                        break;
+
+                    case 1:
+                    case 4:
+                        msg.payload = "On";
+                        break;
+
+                    case 2:
+                    case 5:
+                        msg.payload = "Dim " + evt.level/15*100 + "%";
+                        break;
+
+                    default:
+                        node.warn("rfx-lights-in: unrecognised Lighting2 command " + evt.commandNumber.toString(16));
+                        return;
+                }
+                node.send(msg);
+            }
+        };
+        this.lighting5Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.lighting5[evt.subtype] + "/" + evt.id;
+            if ((evt.commandNumber === 2 && (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4) ) ||
+                (evt.commandNumber === 3) && (evt.subtype === 2 || evt.subtype === 4)) {
+                msg.topic = msg.topic + "/+";
+            } else {
+                msg.topic = msg.topic + "/" + evt.unitcode;
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                switch (evt.subtype) {
+                    case 0: // Lightwave RF
+                        switch (evt.commandNumber) {
+                            case 0:
+                            case 2:
+                                msg.payload = "Off";
+                                break;
+
+                            case 1:
+                                msg.payload = "On";
+                                break;
+
+                            case 3:
+                            case 4:
+                            case 5:
+                            case 6:
+                            case 7:
+                                msg.payload = "Mood" + (evt.commandNumber - 2);
+                                break;
+
+                            case 16:
+                                msg.payload = "Dim " + evt.level/31*100 + "%";
+                                break;
+
+                            case 17:
+                            case 18:
+                            case 19:
+                                node.warn("Lighting5: LightwaveRF colour commands not implemented");
+                                break;
+
+                            default:
+                                return;
+                        }
+                        break;
+
+                    case 2:
+                    case 4: // BBSB & CONRAD
+                        switch (evt.commandNumber) {
+                            case 0:
+                            case 2:
+                                msg.payload = "Off";
+                                break;
+
+                            case 1:
+                            case 3:
+                                msg.payload = "On";
+                                break;
+
+                            default:
+                                return;
+                        }
+                        break;
+
+                    case 6: // TRC02
+                        switch (evt.commandNumber) {
+                            case 0:
+                                msg.payload = "Off";
+                                break;
+
+                            case 1:
+                                msg.payload = "On";
+                                break;
+
+                            case 2:
+                                msg.payload = "Bright";
+                                break;
+
+                            case 3:
+                                msg.payload = "Dim";
+                                break;
+
+                            default:
+                                node.warn("Lighting5: TRC02 colour commands not implemented");
+                                return;
+                        }
+                        break;
+                }
+                node.send(msg);
+            }
+        };
+        this.lighting6Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.lighting6[evt.subtype] + "/" + evt.id + "/" + evt.groupcode;
+            if (evt.commandNumber > 1) {
+                msg.topic = msg.topic + "/+";
+            } else {
+                msg.topic = msg.topic + "/" + evt.unitcode;
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                switch (evt.commandNumber) {
+                    case 1:
+                    case 3:
+                        msg.payload = "Off";
+                        break;
+
+                    case 0:
+                    case 2:
+                        msg.payload = "On";
+                        break;
+
+                    default:
+                        node.warn("rfx-lights-in: unrecognised Lighting6 command " + evt.commandNumber.toString(16));
+                        return;
+                }
+                node.send(msg);
+            }
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
@@ -327,196 +514,10 @@ module.exports = function (RED) {
                 node.on("close", function () {
                     releasePort(node);
                 });
-                node.rfxtrx.on("lighting1", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode;
-                    if (evt.commandNumber === 5 || evt.commandNumber === 6) {
-                        msg.topic = msg.topic + "/+";
-                    } else {
-                        msg.topic = msg.topic + "/" + evt.unitcode;
-                    }
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        switch (evt.commandNumber) {
-                            case 0 :
-                            case 5 :
-                                msg.payload = "Off";
-                                break;
-
-                            case 1 :
-                            case 6 :
-                                msg.payload = "On";
-                                break;
-
-                            case 2 :
-                                msg.payload = "Dim";
-                                break;
-
-                            case 3 :
-                                msg.payload = "Bright";
-                                break;
-
-                            case 7 :    // The ARC 'Chime' command - handled in rfx-doorbells so ignore it here
-                                return;
-
-                            default:
-                                node.warn("rfx-lights-in: unrecognised Lighting1 command " + evt.commandNumber.toString(16));
-                                return;
-                        }
-                        node.send(msg);
-                    }
-                });
-
-                node.rfxtrx.on("lighting2", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.lighting2[evt.subtype] + "/" + evt.id;
-                    if (evt.commandNumber > 2) {
-                        msg.topic = msg.topic + "/+";
-                    } else {
-                        msg.topic = msg.topic + "/" + evt.unitcode;
-                    }
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        switch (evt.commandNumber) {
-                            case 0:
-                            case 3:
-                                msg.payload = "Off";
-                                break;
-
-                            case 1:
-                            case 4:
-                                msg.payload = "On";
-                                break;
-
-                            case 2:
-                            case 5:
-                                msg.payload = "Dim " + evt.level/15*100 + "%";
-                                break;
-
-                            default:
-                                node.warn("rfx-lights-in: unrecognised Lighting2 command " + evt.commandNumber.toString(16));
-                                return;
-                        }
-                        node.send(msg);
-                    }
-                });
-
-                node.rfxtrx.on("lighting5", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.lighting5[evt.subtype] + "/" + evt.id;
-                    if ((evt.commandNumber === 2 && (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4) ) ||
-                        (evt.commandNumber === 3) && (evt.subtype === 2 || evt.subtype === 4)) {
-                        msg.topic = msg.topic + "/+";
-                    } else {
-                        msg.topic = msg.topic + "/" + evt.unitcode;
-                    }
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        switch (evt.subtype) {
-                            case 0: // Lightwave RF
-                                switch (evt.commandNumber) {
-                                    case 0:
-                                    case 2:
-                                        msg.payload = "Off";
-                                        break;
-
-                                    case 1:
-                                        msg.payload = "On";
-                                        break;
-
-                                    case 3:
-                                    case 4:
-                                    case 5:
-                                    case 6:
-                                    case 7:
-                                        msg.payload = "Mood" + (evt.commandNumber - 2);
-                                        break;
-
-                                    case 16:
-                                        msg.payload = "Dim " + evt.level/31*100 + "%";
-                                        break;
-
-                                    case 17:
-                                    case 18:
-                                    case 19:
-                                        node.warn("Lighting5: LightwaveRF colour commands not implemented");
-                                        break;
-
-                                    default:
-                                        return;
-                                }
-                                break;
-
-                            case 2:
-                            case 4: // BBSB & CONRAD
-                                switch (evt.commandNumber) {
-                                    case 0:
-                                    case 2:
-                                        msg.payload = "Off";
-                                        break;
-
-                                    case 1:
-                                    case 3:
-                                        msg.payload = "On";
-                                        break;
-
-                                    default:
-                                        return;
-                                }
-                                break;
-
-                            case 6: // TRC02
-                                switch (evt.commandNumber) {
-                                    case 0:
-                                        msg.payload = "Off";
-                                        break;
-
-                                    case 1:
-                                        msg.payload = "On";
-                                        break;
-
-                                    case 2:
-                                        msg.payload = "Bright";
-                                        break;
-
-                                    case 3:
-                                        msg.payload = "Dim";
-                                        break;
-
-                                    default:
-                                        node.warn("Lighting5: TRC02 colour commands not implemented");
-                                        return;
-                                }
-                                break;
-                        }
-                        node.send(msg);
-                    }
-                });
-
-                node.rfxtrx.on("lighting6", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.lighting6[evt.subtype] + "/" + evt.id + "/" + evt.groupcode;
-                    if (evt.commandNumber > 1) {
-                        msg.topic = msg.topic + "/+";
-                    } else {
-                        msg.topic = msg.topic + "/" + evt.unitcode;
-                    }
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        switch (evt.commandNumber) {
-                            case 1:
-                            case 3:
-                                msg.payload = "Off";
-                                break;
-
-                            case 0:
-                            case 2:
-                                msg.payload = "On";
-                                break;
-
-                            default:
-                                node.warn("rfx-lights-in: unrecognised Lighting6 command " + evt.commandNumber.toString(16));
-                                return;
-                        }
-                        node.send(msg);
-                    }
-                });
+                node.rfxtrx.on("lighting1", this.lighting1Handler);
+                node.rfxtrx.on("lighting2", this.lighting2Handler);
+                node.rfxtrx.on("lighting5", this.lighting5Handler);
+                node.rfxtrx.on("lighting6", this.lighting6Handler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -528,10 +529,10 @@ module.exports = function (RED) {
 // Remove the message event handlers on close
     RfxLightsInNode.prototype.close = function () {
         if (this.rfxtrx) {
-            this.rfxtrx.removeAllListeners("lighting1");
-            this.rfxtrx.removeAllListeners("lighting2");
-            this.rfxtrx.removeAllListeners("lighting5");
-            this.rfxtrx.removeAllListeners("lighting6");
+            this.rfxtrx.removeListener("lighting1", this.lighting1Handler);
+            this.rfxtrx.removeListener("lighting2", this.lighting2Handler);
+            this.rfxtrx.removeListener("lighting5", this.lighting5Handler);
+            this.rfxtrx.removeListener("lighting6", this.lighting6Handler);
         }
     };
 
@@ -544,7 +545,23 @@ module.exports = function (RED) {
         this.name = n.name;
         this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.rfxtrxPort = RED.nodes.getNode(this.port);
+
         var node = this;
+        this.lighting4Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            var db = node.devices.filter(function (entry) {return entry.rawData === evt.data});
+            if (db.length === 0) {
+                msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
+            } else {
+                if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
+                    msg.topic = db[0].device.join("/");
+                    msg.payload = db[0].payload;
+                } else {
+                    return;
+                }
+            }
+            node.send(msg);
+        };
 
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
@@ -553,21 +570,7 @@ module.exports = function (RED) {
                 node.on("close", function () {
                     releasePort(node);
                 });
-                node.rfxtrx.on("lighting4", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    var db = node.devices.filter(function (entry) {return entry.rawData === evt.data});
-                    if (db.length === 0) {
-                        msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
-                    } else {
-                        if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
-                            msg.topic = db[0].device.join("/");
-                            msg.payload = db[0].payload;
-                        } else {
-                            return;
-                        }
-                    }
-                    node.send(msg);
-                });
+                node.rfxtrx.on("lighting4", this.lighting4Handler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -579,7 +582,7 @@ module.exports = function (RED) {
 // Remove the message event handlers on close
     RfxPT2262InNode.prototype.close = function () {
         if (this.rfxtrx) {
-            this.rfxtrx.removeAllListeners("lighting4");
+            this.rfxtrx.removeListener("lighting4", this.lighting4Handler);
         }
     };
 
@@ -657,7 +660,7 @@ module.exports = function (RED) {
                             node.rfxtrx.transmitters['PT2262'].tx.sendData(rawData, pulseWidth);
                             // If we reach this point, the command did not throw an error. Check if should retransmit
                             // it & set the Timeout or Interval as appropriate
-                            if (node.retransmit != "none") {
+                            if (node.retransmit !== "none") {
                                 // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
                                 // function context, where the function lastCommand() can find them
                                 topic = topic.join("/");
@@ -753,7 +756,33 @@ module.exports = function (RED) {
                 node.send(msg);
             }
         };
-
+        this.bbq1Handler = function (evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.bbq1[evt.subtype] + "/" + evt.id})
+        };
+        this.temperaturerainHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.temperatureRain1[evt.subtype] + "/" + evt.id})
+        };
+        this.temperatureHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.temperature1[evt.subtype] + "/" + evt.id})
+        };
+        this.humidityHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.humidity1[evt.subtype] + "/" + evt.id})
+        };
+        this.temperaturehumidityHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.temperatureHumidity1[evt.subtype] + "/" + evt.id})
+        };
+        this.temphumbaroHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.tempHumBaro1[evt.subtype] + "/" + evt.id})
+        };
+        this.rainHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.rain1[evt.subtype] + "/" + evt.id})
+        };
+        this.windHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.wind1[evt.subtype] + "/" + evt.id})
+        };
+        this.uvHandler = function(evt) {
+            sendWeatherMessage(evt, {topic:rfxcom.uv1[evt.subtype] + "/" + evt.id})
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
@@ -761,48 +790,30 @@ module.exports = function (RED) {
                 node.on("close", function () {
                     releasePort(node);
                 });
-                node.rfxtrx.on("bbq1", function (evt) {
-                    sendWeatherMessage(evt, {topic:rfxcom.bbq1[evt.subtype] + "/" + evt.id})
-                });
+                node.rfxtrx.on("bbq1", this.bbq1Handler);
                 for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
-                    node.rfxtrx.on("temprain" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.temperatureRain1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("temprain" + i, this.temperaturerainHandler);
                 }
                 for (i = 1; i < rfxcom.temperature1.length; i++) {
-                    node.rfxtrx.on("temp" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.temperature1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("temp" + i, this.temperatureHandler);
                 }
                 for (i = 1; i < rfxcom.humidity1.length; i++) {
-                    node.rfxtrx.on("humidity" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.humidity1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("humidity" + i, this.humidityHandler);
                 }
                 for (i = 1; i < rfxcom.temperatureHumidity1.length; i++) {
-                    node.rfxtrx.on("th" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.temperatureHumidity1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("th" + i, this.temperaturehumidityHandler);
                 }
                 for (i = 1; i < rfxcom.tempHumBaro1.length; i++) {
-                    node.rfxtrx.on("thb" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.tempHumBaro1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("thb" + i, this.temphumbaroHandler);
                 }
                 for (i = 1; i < rfxcom.rain1.length; i++) {
-                    node.rfxtrx.on("rain" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.rain1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("rain" + i, this.rainHandler);
                 }
                 for (i = 1; i < rfxcom.wind1.length; i++) {
-                    node.rfxtrx.on("wind" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.wind1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("wind" + i, this.windHandler);
                 }
                 for (i = 1; i < rfxcom.uv1.length; i++) {
-                    node.rfxtrx.on("uv" + i, function(evt) {
-                        sendWeatherMessage(evt, {topic:rfxcom.uv1[evt.subtype] + "/" + evt.id})
-                    });
+                    node.rfxtrx.on("uv" + i, this.uvHandler);
                 }
             }
         } else {
@@ -816,30 +827,30 @@ module.exports = function (RED) {
     RfxWeatherSensorNode.prototype.close = function () {
         var i;
         if (this.rfxtrx) {
-            this.rfxtrx.removeAllListeners("bbq1");
+            this.rfxtrx.removeListener("bbq1", this.bbq1Handler);
             for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
-                this.rfxtrx.removeAllListeners("temprain" + i);
+                this.rfxtrx.removeListener("temprain" + i, this.temperaturerainHandler);
             }
             for (i = 1; i < rfxcom.temperature1.length; i++) {
-                this.rfxtrx.removeAllListeners("temp" + i);
+                this.rfxtrx.removeListener("temp" + i, this.temperatureHandler);
             }
             for (i = 1; i < rfxcom.humidity1.length; i++) {
-                this.rfxtrx.removeAllListeners("humidity" + i);
+                this.rfxtrx.removeListener("humidity" + i, this.humidityHandler);
             }
             for (i = 1; i < rfxcom.temperatureHumidity1.length; i++) {
-                this.rfxtrx.removeAllListeners("th" + i);
+                this.rfxtrx.removeListener("th" + i, this.temperaturehumidityHandler);
             }
             for (i = 1; i < rfxcom.tempHumBaro1.length; i++) {
-                this.rfxtrx.removeAllListeners("thb" + i);
+                this.rfxtrx.removeListener("thb" + i, this.temphumbaroHandler);
             }
-            for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
-                this.rfxtrx.removeAllListeners("rain" + i);
+            for (i = 1; i < rfxcom.rain1.length; i++) {
+                this.rfxtrx.removeListener("rain" + i, this.rainHandler);
             }
             for (i = 1; i < rfxcom.wind1.length; i++) {
-                this.rfxtrx.removeAllListeners("wind" + i);
+                this.rfxtrx.removeListener("wind" + i, this.windHandler);
             }
             for (i = 1; i < rfxcom.uv1.length; i++) {
-                this.rfxtrx.removeAllListeners("uv" + i);
+                this.rfxtrx.removeListener("uv" + i, this.uvHandler);
             }
         }
     };
@@ -884,6 +895,18 @@ module.exports = function (RED) {
                 node.send(msg);
             }
         };
+        this.elec1Handler = function (evt) {
+            sendMeterMessage(evt, {topic: rfxcom.elec1[evt.subtype] + "/" + evt.id})
+        };
+        this.elec23Handler = function (evt) {
+            sendMeterMessage(evt, {topic: rfxcom.elec23[evt.subtype] + "/" + evt.id})
+        };
+        this.elec4Handler = function (evt) {
+            sendMeterMessage(evt, {topic: rfxcom.elec4[evt.subtype] + "/" + evt.id})
+        };
+        this.elec5Handler = function (evt) {
+            sendMeterMessage(evt, {topic: rfxcom.elec5[evt.subtype] + "/" + evt.id})
+        };
 
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
@@ -893,24 +916,16 @@ module.exports = function (RED) {
                     releasePort(node);
                 });
                 for (i = 1; i < rfxcom.elec1.length; i++) {
-                    node.rfxtrx.on("elec" + i, function (evt) {
-                        sendMeterMessage(evt, {topic: rfxcom.elec1[evt.subtype] + "/" + evt.id})
-                    })
+                    node.rfxtrx.on("elec" + i, this.elec1Handler)
                 }
                 for (i = 1; i < rfxcom.elec23.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 1), function (evt) {
-                        sendMeterMessage(evt, {topic: rfxcom.elec23[evt.subtype] + "/" + evt.id})
-                    })
+                    node.rfxtrx.on("elec" + (i + 1), this.elec23Handler)
                 }
                 for (i = 1; i < rfxcom.elec4.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 3), function (evt) {
-                        sendMeterMessage(evt, {topic: rfxcom.elec4[evt.subtype] + "/" + evt.id})
-                    })
+                    node.rfxtrx.on("elec" + (i + 3), this.elec4Handler)
                 }
                 for (i = 1; i < rfxcom.elec5.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 4), function (evt) {
-                        sendMeterMessage(evt, {topic: rfxcom.elec5[evt.subtype] + "/" + evt.id})
-                    })
+                    node.rfxtrx.on("elec" + (i + 4), this.elec5Handler)
                 }
             }
         } else {
@@ -925,16 +940,16 @@ module.exports = function (RED) {
 		var i;
         if (this.rfxtrx) {
 			for (i = 1; i < rfxcom.elec1.length; i++) {
-				this.rfxtrx.removeAllListeners("elec" + i);
+				this.rfxtrx.removeListener("elec" + i, this.elec1Handler);
 			}
 			for (i = 1; i < rfxcom.elec23.length; i++) {
-				this.rfxtrx.removeAllListeners("elec" + (i+1));
+				this.rfxtrx.removeListener("elec" + (i+1), this.elec23Handler);
 			}
 			for (i = 1; i < rfxcom.elec4.length; i++) {
-				this.rfxtrx.removeAllListeners("elec" + (i+3));
+				this.rfxtrx.removeListener("elec" + (i+3), this.elec4Handler);
 			}
 			for (i = 1; i < rfxcom.elec5.length; i++) {
-				this.rfxtrx.removeAllListeners("elec" + (i+4));
+				this.rfxtrx.removeListener("elec" + (i+4), this.elec5Handler);
 			}
         }
     };
@@ -955,6 +970,75 @@ module.exports = function (RED) {
         node.HEARTBEATDELAY[rfxcom.security1.X10_PIR] = 90;
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_PIR] = 20;
+        this.security1Handler = function (evt) {
+            var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id};
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                msg.status = {rssi: evt.rssi};
+                switch (evt.subtype) {
+                    case rfxcom.security1.KD101:
+                    case rfxcom.security1.SA30:
+                        if (evt.deviceStatus === rfxcom.security.PANIC) {
+                            msg.payload = "Smoke";
+                        }
+                        break;
+                    case rfxcom.security1.MEIANTECH:
+                        if (evt.deviceStatus === rfxcom.security.PANIC) {
+                            msg.status.battery = evt.batteryLevel;
+                            msg.payload = "Motion";
+                        }
+                        break;
+                    case rfxcom.security1.POWERCODE_AUX:
+                        msg.status.battery = evt.batteryLevel;
+                        msg.status.tampered = Boolean(evt.tampered);
+                        if (evt.deviceStatus === rfxcom.security.ALARM) {
+                            msg.payload = "Alarm";
+                        } else if (evt.tampered) {
+                            msg.payload = "Tamper";
+                        }
+                        break;
+                    // These detectors send "heartbeat" messages at more or less regular intervals
+                    case rfxcom.security1.POWERCODE_DOOR:
+                    case rfxcom.security1.POWERCODE_PIR:
+                    case rfxcom.security1.X10_DOOR:
+                    case rfxcom.security1.X10_PIR:
+                        msg.status.battery = evt.batteryLevel;
+                        msg.status.tampered = Boolean(evt.tampered);
+                        // Clear any existing heartbeat timeout & set a new one
+                        if (node.heartbeats.hasOwnProperty(msg.topic)) {
+                            clearInterval(node.heartbeats[msg.topic]);
+                        }
+                        node.heartbeats[msg.topic] = (function () {
+                            var heartbeatStoppedMsg = {
+                                topic: msg.topic,
+                                payload: "Silent",
+                                lastMessageStatus: msg.status,
+                                lastMessageTimestamp: Date.now(),
+                                lastHeardFrom: new Date().toUTCString()
+                            };
+                            return setInterval(function () {
+                                delete heartbeatStoppedMsg._msgid;
+                                node.send(heartbeatStoppedMsg);
+                            }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
+                        }());
+                        node.heartbeats[msg.topic].unref();
+                        if (evt.deviceStatus === rfxcom.security.ALARM) {
+                            msg.payload = "Alarm";
+                        } else if (evt.deviceStatus === rfxcom.security.MOTION) {
+                            msg.payload = "Motion";
+                        } else if (evt.tampered) {
+                            msg.payload = "Tamper";
+                        } else if (evt.batteryLevel === 0) {
+                            msg.payload = "Battery Low";
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                if (msg.payload) {
+                    node.send(msg);
+                }
+            }
+        };
 
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
@@ -963,75 +1047,7 @@ module.exports = function (RED) {
                 node.on("close", function () {
                     releasePort(node);
                 });
-                node.rfxtrx.on("security1", function (evt) {
-                    var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id};
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        msg.status = {rssi: evt.rssi};
-                        switch (evt.subtype) {
-                            case rfxcom.security1.KD101:
-                            case rfxcom.security1.SA30:
-                                if (evt.deviceStatus === rfxcom.security.PANIC) {
-                                    msg.payload = "Smoke";
-                                }
-                                break;
-                            case rfxcom.security1.MEIANTECH:
-                                if (evt.deviceStatus === rfxcom.security.PANIC) {
-                                    msg.status.battery = evt.batteryLevel;
-                                    msg.payload = "Motion";
-                                }
-                                break;
-                            case rfxcom.security1.POWERCODE_AUX:
-                                msg.status.battery = evt.batteryLevel;
-                                msg.status.tampered = Boolean(evt.tampered);
-                                if (evt.deviceStatus === rfxcom.security.ALARM) {
-                                    msg.payload = "Alarm";
-                                } else if (evt.tampered) {
-                                    msg.payload = "Tamper";
-                                }
-                                break;
-                            // These detectors send "heartbeat" messages at more or less regular intervals
-                            case rfxcom.security1.POWERCODE_DOOR:
-                            case rfxcom.security1.POWERCODE_PIR:
-                            case rfxcom.security1.X10_DOOR:
-                            case rfxcom.security1.X10_PIR:
-                                msg.status.battery = evt.batteryLevel;
-                                msg.status.tampered = Boolean(evt.tampered);
-                                // Clear any existing heartbeat timeout & set a new one
-                                if (node.heartbeats.hasOwnProperty(msg.topic)) {
-                                    clearInterval(node.heartbeats[msg.topic]);
-                                }
-                                node.heartbeats[msg.topic] = (function () {
-                                    var heartbeatStoppedMsg = {
-                                        topic: msg.topic,
-                                        payload: "Silent",
-                                        lastMessageStatus: msg.status,
-                                        lastMessageTimestamp: Date.now(),
-                                        lastHeardFrom: new Date().toUTCString()
-                                    };
-                                    return setInterval(function () {
-                                        delete heartbeatStoppedMsg._msgid;
-                                        node.send(heartbeatStoppedMsg);
-                                    }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
-                                }());
-                                node.heartbeats[msg.topic].unref();
-                                if (evt.deviceStatus === rfxcom.security.ALARM) {
-                                    msg.payload = "Alarm";
-                                } else if (evt.deviceStatus === rfxcom.security.MOTION) {
-                                    msg.payload = "Motion";
-                                } else if (evt.tampered) {
-                                    msg.payload = "Tamper";
-                                } else if (evt.batteryLevel === 0) {
-                                    msg.payload = "Battery Low";
-                                }
-                                break;
-                            default:
-                                break;
-                        }
-                        if (msg.payload) {
-                            node.send(msg);
-                        }
-                    }
-                })
+                node.rfxtrx.on("security1", this.security1Handler)
             }
         }
     }
@@ -1039,13 +1055,12 @@ module.exports = function (RED) {
     RED.nodes.registerType("rfx-detector-in", RfxDetectorsNode);
 
     RfxDetectorsNode.prototype.close = function () {
+        this.rfxtrx.removeListener("security1", this.security1Handler);
         for (var heartbeat in this.heartbeats) {
             if (this.heartbeats.hasOwnProperty(heartbeat)) {
                 clearInterval(this.heartbeats[heartbeat]);
             }
-
         }
-        this.rfxtrx.removeAllListeners("security1");
     };
     
 // An output node for sending messages to light switches & dimmers (including most types of plug-in switch)
@@ -1259,7 +1274,7 @@ module.exports = function (RED) {
 // Remove all retransmission timers on close
     RfxLightsOutNode.prototype.close = purgeTimers;
 
-    // An input node for listening to messages from doorbells
+// An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
         RED.nodes.createNode(this, n);
         this.port = n.port;
@@ -1269,6 +1284,26 @@ module.exports = function (RED) {
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         var node = this;
+        this.lighting1Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode + "/" + evt.unitcode;
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                if (evt.subtype !== 0x01 || evt.commandNumber !== 7) {
+                    return;
+                }
+                node.send(msg);
+            }
+        };
+        this.chime1Handler = function (evt) {
+            var msg = {status: {rssi: evt.rssi}};
+            msg.topic = rfxcom.chime1[evt.subtype] + "/" + evt.id;
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                if (evt.subtype === rfxcom.chime1.BYRON_SX) {
+                    msg.payload = evt.commandNumber;
+                }
+                node.send(msg);
+            }
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
             if (node.rfxtrx !== null) {
@@ -1276,27 +1311,8 @@ module.exports = function (RED) {
                 node.on("close", function () {
                     releasePort(node);
                 });
-                node.rfxtrx.on("lighting1", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode + "/" + evt.unitcode;
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        if (evt.subtype !== 0x01 || evt.commandNumber !== 7) {
-                            return;
-                        }
-                        node.send(msg);
-                    }
-                });
-
-                node.rfxtrx.on("chime1", function (evt) {
-                    var msg = {status: {rssi: evt.rssi}};
-                    msg.topic = rfxcom.chime1[evt.subtype] + "/" + evt.id;
-                    if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                        if (evt.subtype === rfxcom.chime1.BYRON_SX) {
-                            msg.payload = evt.commandNumber;
-                        }
-                        node.send(msg);
-                    }
-                });
+                node.rfxtrx.on("lighting1", this.lighting1Handler);
+                node.rfxtrx.on("chime1", this.chime1Handler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -1308,8 +1324,8 @@ module.exports = function (RED) {
 // Remove the message event handlers on close
     RfxDoorbellInNode.prototype.close = function () {
         if (this.rfxtrx) {
-            this.rfxtrx.removeAllListeners("lighting1");
-            this.rfxtrx.removeAllListeners("chime1");
+            this.rfxtrx.removeListener("lighting1", this.lighting1Handler);
+            this.rfxtrx.removeListener("chime1", this.chime1Handler);
         }
     };
 
