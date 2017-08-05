@@ -322,7 +322,7 @@ module.exports = function (RED) {
         var node = this;
         this.lighting1Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode;
+            msg.topic = rfxcom.lighting1[evt.subtype] || "LIGHTING1_UNKNOWN" + "/" + evt.housecode;
             if (evt.commandNumber === 5 || evt.commandNumber === 6) {
                 msg.topic = msg.topic + "/+";
             } else {
@@ -360,7 +360,7 @@ module.exports = function (RED) {
         };
         this.lighting2Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.lighting2[evt.subtype] + "/" + evt.id;
+            msg.topic = rfxcom.lighting2[evt.subtype] || "LIGHTING2_UNKNOWN" + "/" + evt.id;
             if (evt.commandNumber > 2) {
                 msg.topic = msg.topic + "/+";
             } else {
@@ -392,7 +392,7 @@ module.exports = function (RED) {
         };
         this.lighting5Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.lighting5[evt.subtype] + "/" + evt.id;
+            msg.topic = rfxcom.lighting5[evt.subtype] || "LIGHTING5_UNKNOWN" + "/" + evt.id;
             if ((evt.commandNumber === 2 && (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4) ) ||
                 (evt.commandNumber === 3) && (evt.subtype === 2 || evt.subtype === 4)) {
                 msg.topic = msg.topic + "/+";
@@ -482,7 +482,7 @@ module.exports = function (RED) {
         };
         this.lighting6Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.lighting6[evt.subtype] + "/" + evt.id + "/" + evt.groupcode;
+            msg.topic = rfxcom.lighting6[evt.subtype] || "LIGHTING6_UNKNOWN" + "/" + evt.id + "/" + evt.groupcode;
             if (evt.commandNumber > 1) {
                 msg.topic = msg.topic + "/+";
             } else {
@@ -757,31 +757,31 @@ module.exports = function (RED) {
             }
         };
         this.bbq1Handler = function (evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.bbq1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.bbq1[evt.subtype] || "BBQ1_UNKNOWN" + "/" + evt.id})
         };
         this.temperaturerainHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.temperatureRain1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.temperatureRain1[evt.subtype] || "TEMPERATURERAIN1_UNKNOWN" + "/" + evt.id})
         };
         this.temperatureHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.temperature1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.temperature1[evt.subtype] || "TEMPERATURE1_UNKNOWN" + "/" + evt.id})
         };
         this.humidityHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.humidity1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.humidity1[evt.subtype] || "HUMIDITY1_UNKNOWN" + "/" + evt.id})
         };
         this.temperaturehumidityHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.temperatureHumidity1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.temperatureHumidity1[evt.subtype] || "TEMPERATUREHUMIDITY1_UNKNOWN" + "/" + evt.id})
         };
         this.temphumbaroHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.tempHumBaro1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.tempHumBaro1[evt.subtype] || "TEMPHUMBARO1_UNKNOWN" + "/" + evt.id})
         };
         this.rainHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.rain1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.rain1[evt.subtype] || "RAIN1_UNKNOWN" + "/" + evt.id})
         };
         this.windHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.wind1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.wind1[evt.subtype] || "WIND1_UNKNOWN" + "/" + evt.id})
         };
         this.uvHandler = function(evt) {
-            sendWeatherMessage(evt, {topic:rfxcom.uv1[evt.subtype] + "/" + evt.id})
+            sendWeatherMessage(evt, {topic:rfxcom.uv1[evt.subtype] || "UV1_UNKNOWN" + "/" + evt.id})
         };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
@@ -896,16 +896,16 @@ module.exports = function (RED) {
             }
         };
         this.elec1Handler = function (evt) {
-            sendMeterMessage(evt, {topic: rfxcom.elec1[evt.subtype] + "/" + evt.id})
+            sendMeterMessage(evt, {topic: rfxcom.elec1[evt.subtype] || "ELEC1_UNKNOWN" + "/" + evt.id})
         };
         this.elec23Handler = function (evt) {
-            sendMeterMessage(evt, {topic: rfxcom.elec23[evt.subtype] + "/" + evt.id})
+            sendMeterMessage(evt, {topic: rfxcom.elec23[evt.subtype] || "ELEC23_UNKNOWN" + "/" + evt.id})
         };
         this.elec4Handler = function (evt) {
-            sendMeterMessage(evt, {topic: rfxcom.elec4[evt.subtype] + "/" + evt.id})
+            sendMeterMessage(evt, {topic: rfxcom.elec4[evt.subtype] || "ELEC4_UNKNOWN" + "/" + evt.id})
         };
         this.elec5Handler = function (evt) {
-            sendMeterMessage(evt, {topic: rfxcom.elec5[evt.subtype] + "/" + evt.id})
+            sendMeterMessage(evt, {topic: rfxcom.elec5[evt.subtype] || "ELEC5_UNKNOWN" + "/" + evt.id})
         };
 
         if (node.rfxtrxPort) {
@@ -971,7 +971,7 @@ module.exports = function (RED) {
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_PIR] = 20;
         this.security1Handler = function (evt) {
-            var msg = {topic: rfxcom.security1[evt.subtype] + "/" + evt.id};
+            var msg = {topic: rfxcom.security1[evt.subtype] || "SECURITY1_UNKNOWN" + "/" + evt.id};
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.status = {rssi: evt.rssi};
                 switch (evt.subtype) {
@@ -1286,7 +1286,7 @@ module.exports = function (RED) {
         var node = this;
         this.lighting1Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.lighting1[evt.subtype] + "/" + evt.housecode + "/" + evt.unitcode;
+            msg.topic = rfxcom.lighting1[evt.subtype] || "LIGHTING1_UNKNOWN" + "/" + evt.housecode + "/" + evt.unitcode;
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 if (evt.subtype !== 0x01 || evt.commandNumber !== 7) {
                     return;
@@ -1296,7 +1296,7 @@ module.exports = function (RED) {
         };
         this.chime1Handler = function (evt) {
             var msg = {status: {rssi: evt.rssi}};
-            msg.topic = rfxcom.chime1[evt.subtype] + "/" + evt.id;
+            msg.topic = rfxcom.chime1[evt.subtype] || "CHIME1_UNKNOWN" + "/" + evt.id;
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 if (evt.subtype === rfxcom.chime1.BYRON_SX) {
                     msg.payload = evt.commandNumber;
