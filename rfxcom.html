@@ -691,14 +691,14 @@ or loss of property, or protection from risk of injury or death, may depend on i
     </div>
     <div class="form-row">
         <div style="padding: 5px; padding-left: 0px; border: 1px solid #fff; margin-bottom:-12px">
-            <span style="display:inline-block; margin-left:12px; width:220px;">Topic</span>
-            <span style="display:inline-block; margin-left:12px; width:108px;">Payload</span>
-            <span style="display:inline-block; margin-left:12px; width:78px; text-align:right;">Data</span>
-            <span style="display:inline-block; margin-left:15px; width:48px; text-align:right;">Pulse</span>
+            <span style="display:inline-block; margin-left:12px; width:40%;">Topic</span>
+            <span style="display:inline-block; margin-left:12px; width:20%;">Payload</span>
+            <span style="display:inline-block; margin-left:12px; width:12%; text-align:right;">Data</span>
+            <span style="display:inline-block; margin-left:15px; width:8%; text-align:right;">Pulse</span>
         </div>
     </div>
     <div class="form-row">
-        <div id="node-config-list-container-div" style="border-radius: 5px; height: 216px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+        <div id="node-config-list-container-div" style="border-radius: 5px; height: 240px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
             <ol id="node-config-list-container" style="list-style-type:none; margin: 0;">
             </ol>
         </div>
@@ -707,6 +707,35 @@ or loss of property, or protection from risk of injury or death, may depend on i
         <a href="#" class="btn btn-mini" id="node-config-add-list-entry" style="margin-top: 4px;"><i class="icon-plus"></i> Add New Device</a>
     </div>
 
+</script>
+
+<script type="text/x-red" data-help-name="PT2262-device-list">
+<p>
+The entries in a Device List match a user-defined message <i>Topic</i> and <i>Payload</i> to a hexadecimal <i>Data</i>
+value, and a <i>Pulse</i> duration in microseconds:
+<ul>
+<li>
+When an rfx-PT2262-out node receives a message, it scans the list
+looking for an entry with matching <i>Topic</i> and <i>Payload</i>. If it finds one, it tells the RFXtrx433 to send
+a radio transmission with the corresponding <i>Data</i> value, using the corresponding <i>Pulse</i> duration.
+</li>
+<li>
+When an rfx-PT2262-in node receives a radio transmission from the RFXtrx433, it scans the list looking for a matching
+<i>Data</i> value. If it finds one, it sends a message with the corresponding <i>Topic</i> and <i>Payload</i> (the
+<i>Pulse</i> value is ignored)
+</li>
+</ul>
+</p>
+<p>
+Within a device list, the <i>Topic</i> and <i>Payload</i> may be assigned arbitrarily, but the combination of the two
+must be unique (duplicates are deleted when you <b>Update</b> the list). Although the actual text of each is arbitrary,
+you should keep to the /-delimited format for the <i>Topic</i>, and it is a good idea to always start with 'PT2262/'.
+</p>
+<p>
+You can add as many entries as you want with the <b>Add New Device</b> button, or delete existing entries with the <b>x</b>
+button on each row. The same list may be shared by multiple rfx-PT2262-in and
+rfx-PT2262-out nodes, or different nodes may use different lists.
+</p>
 </script>
 
 <script type="text/javascript">
@@ -725,13 +754,13 @@ or loss of property, or protection from risk of injury or death, may depend on i
                 var row = $('<div/>').appendTo(container);
                 var entryField = $('<span/>').appendTo(row);
                 var deviceField = $('<input/>', { class:"node-config-device-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:220px;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:42%;"}).appendTo(entryField);
                 var payloadField = $('<input/>', { class:"node-config-payload-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:108px;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:26%;"}).appendTo(entryField);
                 var rawDataField = $('<input/>', { class:"node-config-rawdata-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:78px; text-align:right;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:13%; text-align:right;"}).appendTo(entryField);
                 var pulseWidthField = $('<input/>', { class:"node-config-pulsewidth-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:48px; text-align:right;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:10%; text-align:right;"}).appendTo(entryField);
                 var deleteButton = $('<a/>', {href:"#", class:"btn btn-mini", style:"margin-left: 5px;"}).appendTo(row);
                     $('<i/>', {class:"icon-remove"}).appendTo(deleteButton);
                     deleteButton.click(function() {
@@ -864,7 +893,6 @@ template. This takes place using the topic found in the device list as the messa
 0x555533 corresponds to topic 'PT2262/Remote/1 & payload '2', a message will be output if the address pattern is
 'PT2262', 'PT2262/Remote' or 'PT2262/Remote/1'.
 <p>
-
 </script>
 
 <script type="text/javascript">
