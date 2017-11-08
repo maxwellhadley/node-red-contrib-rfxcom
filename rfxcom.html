@@ -627,7 +627,8 @@ Listens for messages from wireless intruder and smoke detectors using an RFXtrx4
 <ul>
 <li>Smoke detectors will send a "Smoke" payload when triggered.</li>
 <li>PIR motion detectors will send a "Motion" payload when triggered.</li>
-<li>Door/window opening detectors will send an "Alarm" payload when triggered.</li>
+<li>Door/window opening detectors will send an "Alarm" payload when triggered, and a "Normal" payload
+when the door or window is closed again.</li>
 <li>Suitably equipped detectors will send a "Tamper" payload when the anti-tamper circuit is triggered.</li>
 <li>X10 and some types of Visonic PowerCode detectors report their status at regular intervals. If these reports stop,
 the node sends regular output messages with a "Silent" payload. The node will also send an output message with a "Battery

@@ -655,7 +655,6 @@ module.exports = function (RED) {
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
-        // var i;
 
         const sendWeatherMessage = function (evt, msg) {
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
@@ -749,32 +748,6 @@ module.exports = function (RED) {
                 node.rfxtrx.on("rain1", this.rainHandler);
                 node.rfxtrx.on("wind1", this.windHandler);
                 node.rfxtrx.on("uv1", this.uvHandler);
-/*
-                for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
-                    node.rfxtrx.on("temprain" + i, this.temperaturerainHandler);
-                }
-                for (i = 1; i < rfxcom.temperature1.length; i++) {
-                    node.rfxtrx.on("temp" + i, this.temperatureHandler);
-                }
-                for (i = 1; i < rfxcom.humidity1.length; i++) {
-                    node.rfxtrx.on("humidity" + i, this.humidityHandler);
-                }
-                for (i = 1; i < rfxcom.temperatureHumidity1.length; i++) {
-                    node.rfxtrx.on("th" + i, this.temperaturehumidityHandler);
-                }
-                for (i = 1; i < rfxcom.tempHumBaro1.length; i++) {
-                    node.rfxtrx.on("thb" + i, this.temphumbaroHandler);
-                }
-                for (i = 1; i < rfxcom.rain1.length; i++) {
-                    node.rfxtrx.on("rain" + i, this.rainHandler);
-                }
-                for (i = 1; i < rfxcom.wind1.length; i++) {
-                    node.rfxtrx.on("wind" + i, this.windHandler);
-                }
-                for (i = 1; i < rfxcom.uv1.length; i++) {
-                    node.rfxtrx.on("uv" + i, this.uvHandler);
-                }
-*/
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -785,7 +758,6 @@ module.exports = function (RED) {
 
 // Remove the message event handlers on close
     RfxWeatherSensorNode.prototype.close = function () {
-        // var i;
         if (this.rfxtrx) {
             this.rfxtrx.removeListener("bbq1", this.bbq1Handler);
             this.rfxtrx.removeListener("temperaturerain1", this.temperaturerainHandler);
@@ -796,32 +768,6 @@ module.exports = function (RED) {
             this.rfxtrx.removeListener("rain1", this.rainHandler);
             this.rfxtrx.removeListener("wind1", this.windHandler);
             this.rfxtrx.removeListener("uv1", this.uvHandler);
-/*
-            for (i = 1; i < rfxcom.temperatureRain1.length; i++) {
-                this.rfxtrx.removeListener("temprain" + i, this.temperaturerainHandler);
-            }
-            for (i = 1; i < rfxcom.temperature1.length; i++) {
-                this.rfxtrx.removeListener("temp" + i, this.temperatureHandler);
-            }
-            for (i = 1; i < rfxcom.humidity1.length; i++) {
-                this.rfxtrx.removeListener("humidity" + i, this.humidityHandler);
-            }
-            for (i = 1; i < rfxcom.temperatureHumidity1.length; i++) {
-                this.rfxtrx.removeListener("th" + i, this.temperaturehumidityHandler);
-            }
-            for (i = 1; i < rfxcom.tempHumBaro1.length; i++) {
-                this.rfxtrx.removeListener("thb" + i, this.temphumbaroHandler);
-            }
-            for (i = 1; i < rfxcom.rain1.length; i++) {
-                this.rfxtrx.removeListener("rain" + i, this.rainHandler);
-            }
-            for (i = 1; i < rfxcom.wind1.length; i++) {
-                this.rfxtrx.removeListener("wind" + i, this.windHandler);
-            }
-            for (i = 1; i < rfxcom.uv1.length; i++) {
-                this.rfxtrx.removeListener("uv" + i, this.uvHandler);
-            }
-*/
         }
     };
 
@@ -835,7 +781,6 @@ module.exports = function (RED) {
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
-        // var i;
 
         const sendMeterMessage = function (evt, msg) {
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
@@ -889,20 +834,6 @@ module.exports = function (RED) {
                 node.rfxtrx.on("elec23", this.elec23Handler);
                 node.rfxtrx.on("elec4", this.elec1Handler);
                 node.rfxtrx.on("elec5", this.elec1Handler);
-/*
-                for (i = 1; i < rfxcom.elec1.length; i++) {
-                    node.rfxtrx.on("elec" + i, this.elec1Handler)
-                }
-                for (i = 1; i < rfxcom.elec23.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 1), this.elec23Handler)
-                }
-                for (i = 1; i < rfxcom.elec4.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 3), this.elec4Handler)
-                }
-                for (i = 1; i < rfxcom.elec5.length; i++) {
-                    node.rfxtrx.on("elec" + (i + 4), this.elec5Handler)
-                }
-*/
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -913,26 +844,11 @@ module.exports = function (RED) {
 
 // Remove the message event handlers on close
     RfxEnergyMeterNode.prototype.close = function () {
-		// var i;
         if (this.rfxtrx) {
             this.rfxtrx.removeListener("elec1", this.elec1Handler);
             this.rfxtrx.removeListener("elec23", this.elec1Handler);
             this.rfxtrx.removeListener("elec4", this.elec1Handler);
             this.rfxtrx.removeListener("elec5", this.elec1Handler);
-/*
-			for (i = 1; i < rfxcom.elec1.length; i++) {
-				this.rfxtrx.removeListener("elec" + i, this.elec1Handler);
-			}
-			for (i = 1; i < rfxcom.elec23.length; i++) {
-				this.rfxtrx.removeListener("elec" + (i+1), this.elec23Handler);
-			}
-			for (i = 1; i < rfxcom.elec4.length; i++) {
-				this.rfxtrx.removeListener("elec" + (i+3), this.elec4Handler);
-			}
-			for (i = 1; i < rfxcom.elec5.length; i++) {
-				this.rfxtrx.removeListener("elec" + (i+4), this.elec5Handler);
-			}
-*/
         }
     };
 
@@ -947,7 +863,7 @@ module.exports = function (RED) {
 
         const node = this;
         node.heartbeats = {};
-        node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone ailent
+        node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone silent
         node.HEARTBEATDELAY[rfxcom.security1.X10_DOOR] = 90;
         node.HEARTBEATDELAY[rfxcom.security1.X10_PIR] = 90;
         node.HEARTBEATDELAY[rfxcom.security1.POWERCODE_DOOR] = 20;
@@ -963,12 +879,14 @@ module.exports = function (RED) {
                             msg.payload = "Smoke";
                         }
                         break;
+
                     case rfxcom.security1.MEIANTECH:
                         if (evt.deviceStatus === rfxcom.security.PANIC) {
                             msg.status.battery = evt.batteryLevel;
                             msg.payload = "Motion";
                         }
                         break;
+
                     case rfxcom.security1.POWERCODE_AUX:
                         msg.status.battery = evt.batteryLevel;
                         msg.status.tampered = Boolean(evt.tampered);
@@ -978,6 +896,7 @@ module.exports = function (RED) {
                             msg.payload = "Tamper";
                         }
                         break;
+
                     // These detectors send "heartbeat" messages at more or less regular intervals
                     case rfxcom.security1.POWERCODE_DOOR:
                     case rfxcom.security1.POWERCODE_PIR:
@@ -985,34 +904,54 @@ module.exports = function (RED) {
                     case rfxcom.security1.X10_PIR:
                         msg.status.battery = evt.batteryLevel;
                         msg.status.tampered = Boolean(evt.tampered);
-                        // Clear any existing heartbeat timeout & set a new one
+                        msg.status.state = evt.deviceStatus;
+                        msg.status.delayed = Boolean(evt.deviceStatus === rfxcom.security.ALARM_DELAYED ||
+                                                     evt.deviceStatus === rfxcom.security.NORMAL_DELAYED);
+                        // Clear any existing heartbeat timeout & retrieve the device status from the last message
+                        let lastDeviceStatus = NaN;
                         if (node.heartbeats.hasOwnProperty(msg.topic)) {
-                            clearInterval(node.heartbeats[msg.topic]);
+                            clearInterval(node.heartbeats[msg.topic].interval);
+                            lastDeviceStatus = node.heartbeats[msg.topic].lastStatus;
                         }
-                        node.heartbeats[msg.topic] = (function () {
-                            const heartbeatStoppedMsg = {
-                                topic: msg.topic,
-                                payload: "Silent",
-                                lastMessageStatus: msg.status,
-                                lastMessageTimestamp: Date.now(),
-                                lastHeardFrom: new Date().toUTCString()
-                            };
-                            return setInterval(function () {
-                                delete heartbeatStoppedMsg._msgid;
-                                node.send(heartbeatStoppedMsg);
-                            }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
-                        }());
-                        node.heartbeats[msg.topic].unref();
-                        if (evt.deviceStatus === rfxcom.security.ALARM) {
-                            msg.payload = "Alarm";
-                        } else if (evt.deviceStatus === rfxcom.security.MOTION) {
-                            msg.payload = "Motion";
-                        } else if (evt.tampered) {
-                            msg.payload = "Tamper";
-                        } else if (evt.batteryLevel === 0) {
+                        // Set a heartbeat timeout and record the current device status
+                        node.heartbeats[msg.topic] = {
+                            lastStatus: evt.deviceStatus,
+                            interval: (function () {
+                                const heartbeatStoppedMsg = {
+                                    topic: msg.topic,
+                                    payload: "Silent",
+                                    lastMessageStatus: msg.status,
+                                    lastMessageTimestamp: Date.now(),
+                                    lastHeardFrom: new Date().toUTCString()
+                                };
+                                return setInterval(function () {
+                                    delete heartbeatStoppedMsg._msgid;
+                                    node.send(heartbeatStoppedMsg);
+                                }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
+                                }())
+                        };
+                        // This ensures a clean shutdown on redeploy
+                        node.heartbeats[msg.topic].interval.unref();
+                        // Payload priority is Tamper > Alarm/motion/Normal > Battery Low
+                        if (evt.batteryLevel === 0) {
                             msg.payload = "Battery Low";
                         }
+                        if (evt.deviceStatus !== lastDeviceStatus) {
+                            if (evt.deviceStatus === rfxcom.security.ALARM ||
+                                evt.deviceStatus === rfxcom.security.ALARM_DELAYED) {
+                                msg.payload = "Alarm";
+                            } else if (evt.deviceStatus === rfxcom.security.NORMAL ||
+                                       evt.deviceStatus === rfxcom.security.NORMAL_DELAYED) {
+                                msg.payload = "Normal";
+                            } else if (evt.deviceStatus === rfxcom.security.MOTION) {
+                                msg.payload = "Motion";
+                            }
+                        }
+                        if (evt.tampered) {
+                            msg.payload = "Tamper";
+                        }
                         break;
+
                     default:
                         break;
                 }
