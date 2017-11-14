@@ -35,6 +35,7 @@ module.exports = function (RED) {
     function RfxtrxPortNode(n) {
         RED.nodes.createNode(this, n);
         this.port = n.port;
+        this.rfyVenetianMode = n.rfyVenetianMode || "EU";
     }
 
 // Register the config node
@@ -86,7 +87,22 @@ module.exports = function (RED) {
                                 showConnectionStatus(node);
                             });
                     });
-                    // TODO - check if new RFY 'list' (remotes) event handler may be needed?
+                    rfxtrx.on("response", function (message, seqnbr, responseCode) {
+                        if (responseCode > 0) {
+                            node.warn("RFXCOM: " + message + " (" + responseCode + ")");
+                        }
+                    });
+                    rfxtrx.on("rfyremoteslist", function (list) {
+                        if (list.length === 0) {
+                            node.warn("RFXCOM: No RFY remotes are programmed in this device")
+                        } else {
+                            let message = "RFXCOM: RFY remotes in this device:";
+                            list.forEach(function (entry) {
+                                message = message + "\n  " + entry.remoteType + "/" + entry.deviceId;
+                            });
+                            node.warn(message);
+                        }
+                    });
                     rfxtrx.on("disconnect", function (msg) {
                         node.log("disconnected: " + msg);
                         pool[port].references.forEach(function (node) {
@@ -145,13 +161,13 @@ module.exports = function (RED) {
 // API) for that protocol. It also creates the node-rfxcom object implementing the message packet type
 // corresponding to that subtype (from the list provided), or re-uses a pre-existing object that implements it.
 // These objects are stored in the transmitters property of rfxcomObject
-    const getRfxcomSubtype = function (rfxcomObject, protocolName, transmitterPacketTypes) {
+    const getRfxcomSubtype = function (rfxcomObject, protocolName, transmitterPacketTypes, options) {
         let subtype = -1;
         if (rfxcomObject.transmitters.hasOwnProperty(protocolName) === false) {
             transmitterPacketTypes.forEach(function (packetType) {
                 if (rfxcom[packetType][protocolName] !== undefined) {
                     subtype = rfxcom[packetType][protocolName];
-                    rfxcomObject.transmitters[protocolName] = new rfxcom[packetType].transmitter(rfxcomObject, subtype);
+                    rfxcomObject.transmitters[protocolName] = new rfxcom[packetType].transmitter(rfxcomObject, subtype, options);
                 }
             });
         } else {
@@ -239,13 +255,13 @@ module.exports = function (RED) {
         }
     };
 
-// Purge retransmission timers associated with this node and delete them to avoid leaking memory
-    const purgeTimers = function () {
+// Purge retransmission timers associated a this node and delete them to avoid leaking memory
+    const purgeTimers = function (node) {
            let tx = {};
-           for (tx in this.retransmissions) {
-               if (this.retransmissions.hasOwnProperty(tx)) {
-                   this.clearRetransmission(this.retransmissions[tx]);
-                   delete this.retransmissions[tx];
+           for (tx in node.retransmissions) {
+               if (node.retransmissions.hasOwnProperty(tx)) {
+                   node.clearRetransmission(node.retransmissions[tx]);
+                   delete node.retransmissions[tx];
                }
            }
        };
@@ -462,6 +478,12 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("lighting1", node.lighting1Handler);
+                        node.rfxtrx.removeListener("lighting2", node.lighting2Handler);
+                        node.rfxtrx.removeListener("lighting5", node.lighting5Handler);
+                        node.rfxtrx.removeListener("lighting6", node.lighting6Handler);
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("lighting1", this.lighting1Handler);
@@ -475,16 +497,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-lights-in", RfxLightsInNode);
-
-// Remove the message event handlers on close
-    RfxLightsInNode.prototype.close = function () {
-        if (this.rfxtrx) {
-            this.rfxtrx.removeListener("lighting1", this.lighting1Handler);
-            this.rfxtrx.removeListener("lighting2", this.lighting2Handler);
-            this.rfxtrx.removeListener("lighting5", this.lighting5Handler);
-            this.rfxtrx.removeListener("lighting6", this.lighting6Handler);
-        }
-    };
 
 // An input node for listening to messages from PT622 (lighting4) devices
     function RfxPT2262InNode(n) {
@@ -518,6 +530,9 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("lighting4", node.lighting4Handler);
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("lighting4", this.lighting4Handler);
@@ -528,13 +543,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-PT2262-in", RfxPT2262InNode);
-
-// Remove the message event handlers on close
-    RfxPT2262InNode.prototype.close = function () {
-        if (this.rfxtrx) {
-            this.rfxtrx.removeListener("lighting4", this.lighting4Handler);
-        }
-    };
 
 // An output node for sending messages to lighting4 devices, using the PT2262/72 chips
     function RfxPT2262OutNode(n) {
@@ -570,6 +578,7 @@ module.exports = function (RED) {
                 showConnectionStatus(node);
                 getRfxcomSubtype(node.rfxtrx, "PT2262", ["lighting4"]);
                 node.on("close", function () {
+                    purgeTimers(node);
                     releasePort(node);
                 });
                 node.on("input", function (msg) {
@@ -641,9 +650,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
-
-// Remove all retransmission timers on close
-    RfxPT2262OutNode.prototype.close = purgeTimers;
 
 // An input node for listening to messages from (mainly weather) sensors
     function RfxWeatherSensorNode(n) {
@@ -737,6 +743,17 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("bbq1", node.bbq1Handler);
+                        node.rfxtrx.removeListener("temperaturerain1", node.temperaturerainHandler);
+                        node.rfxtrx.removeListener("temperature1", node.temperatureHandler);
+                        node.rfxtrx.removeListener("humidity1", node.humidityHandler);
+                        node.rfxtrx.removeListener("temperaturehumidity1", node.temperaturehumidityHandler);
+                        node.rfxtrx.removeListener("temphumbaro1", node.temphumbaroHandler);
+                        node.rfxtrx.removeListener("rain1", node.rainHandler);
+                        node.rfxtrx.removeListener("wind1", node.windHandler);
+                        node.rfxtrx.removeListener("uv1", node.uvHandler);
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("bbq1", this.bbq1Handler);
@@ -755,21 +772,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-sensor", RfxWeatherSensorNode);
-
-// Remove the message event handlers on close
-    RfxWeatherSensorNode.prototype.close = function () {
-        if (this.rfxtrx) {
-            this.rfxtrx.removeListener("bbq1", this.bbq1Handler);
-            this.rfxtrx.removeListener("temperaturerain1", this.temperaturerainHandler);
-            this.rfxtrx.removeListener("temperature1", this.temperatureHandler);
-            this.rfxtrx.removeListener("humidity1", this.humidityHandler);
-            this.rfxtrx.removeListener("temperaturehumidity1", this.temperaturehumidityHandler);
-            this.rfxtrx.removeListener("temphumbaro1", this.temphumbaroHandler);
-            this.rfxtrx.removeListener("rain1", this.rainHandler);
-            this.rfxtrx.removeListener("wind1", this.windHandler);
-            this.rfxtrx.removeListener("uv1", this.uvHandler);
-        }
-    };
 
 // An input node for listening to messages from (electrical) energy & current monitors
     function RfxEnergyMeterNode(n) {
@@ -828,6 +830,12 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("elec1", node.elec1Handler);
+                        node.rfxtrx.removeListener("elec23", node.elec1Handler);
+                        node.rfxtrx.removeListener("elec4", node.elec1Handler);
+                        node.rfxtrx.removeListener("elec5", node.elec1Handler);
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("elec1", this.elec1Handler);
@@ -841,16 +849,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-meter", RfxEnergyMeterNode);
-
-// Remove the message event handlers on close
-    RfxEnergyMeterNode.prototype.close = function () {
-        if (this.rfxtrx) {
-            this.rfxtrx.removeListener("elec1", this.elec1Handler);
-            this.rfxtrx.removeListener("elec23", this.elec1Handler);
-            this.rfxtrx.removeListener("elec4", this.elec1Handler);
-            this.rfxtrx.removeListener("elec5", this.elec1Handler);
-        }
-    };
 
 // An input node for listening to messages from security and smoke detectors
     function RfxDetectorsNode(n) {
@@ -966,6 +964,13 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    node.rfxtrx.removeListener("security1", node.security1Handler);
+                    let heartbeat = {};
+                    for (heartbeat in node.heartbeats) {
+                        if (node.heartbeats.hasOwnProperty(heartbeat)) {
+                            clearInterval(node.heartbeats[heartbeat]);
+                        }
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("security1", this.security1Handler)
@@ -975,16 +980,6 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("rfx-detector-in", RfxDetectorsNode);
 
-    RfxDetectorsNode.prototype.close = function () {
-        this.rfxtrx.removeListener("security1", this.security1Handler);
-        let heartbeat = {};
-        for (heartbeat in this.heartbeats) {
-            if (this.heartbeats.hasOwnProperty(heartbeat)) {
-                clearInterval(this.heartbeats[heartbeat]);
-            }
-        }
-    };
-    
 // An output node for sending messages to light switches & dimmers (including most types of plug-in switch)
     function RfxLightsOutNode(n) {
         RED.nodes.createNode(this, n);
@@ -1101,6 +1096,7 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    purgeTimers(node);
                     releasePort(node);
                 });
                 node.on("input", function (msg) {
@@ -1194,9 +1190,6 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
 
-// Remove all retransmission timers on close
-    RfxLightsOutNode.prototype.close = purgeTimers;
-
 // An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
         RED.nodes.createNode(this, n);
@@ -1232,6 +1225,10 @@ module.exports = function (RED) {
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("lighting1", node.lighting1Handler);
+                        node.rfxtrx.removeListener("chime1", node.chime1Handler);
+                    }
                     releasePort(node);
                 });
                 node.rfxtrx.on("lighting1", this.lighting1Handler);
@@ -1243,14 +1240,6 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-doorbell-in", RfxDoorbellInNode);
-
-// Remove the message event handlers on close
-    RfxDoorbellInNode.prototype.close = function () {
-        if (this.rfxtrx) {
-            this.rfxtrx.removeListener("lighting1", this.lighting1Handler);
-            this.rfxtrx.removeListener("chime1", this.chime1Handler);
-        }
-    };
 
 // An output node for sending messages to doorbells
     function RfxDoorbellOutNode(n) {
@@ -1297,7 +1286,7 @@ module.exports = function (RED) {
                         path = stringToParts(msg.topic);
                     }
                     if (path.length === 0) {
-                        node.warn("rfx-doorbell-out: missing topic");
+                        node.warn((node.name || "rfx-doorbell-out ") + ": missing topic");
                         return;
                     }
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
@@ -1310,7 +1299,7 @@ module.exports = function (RED) {
                     try {
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "chime1"]);
                         if (subtype < 0) {
-                            node.warn((node.name || "rfx-lights-out ") + ": device type '" + protocolName + "' is not supported");
+                            node.warn((node.name || "rfx-doorbell-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
                             parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload);
                         }
@@ -1325,5 +1314,220 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-doorbell-out", RfxDoorbellOutNode);
+
+// An input node for listening to messages from blinds remote controls
+    function RfxBlindsInNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource;
+        this.topic = normaliseTopic(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+        this.blinds1Handler = function (evt) {
+            let msg = {status: {rssi: evt.rssi}};
+            msg.topic = (rfxcom.blinds1[evt.subtype] || "BLINDS_UNKNOWN") + "/" + evt.id;
+            if (evt.subtype === 0 || evt.subtype === 1) {
+                msg.topic = msg.topic + "/" + evt.unitCode;
+            } else if (evt.subtype === 3) {
+                if (evt.unitCode === 0x10) {
+                    msg.topic = msg.topic + "/0"
+                } else {
+                    msg.topic = msg.topic + "/" + evt.unitCode + 1;
+                }
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                msg.payload = evt.command;
+                node.send(msg);
+            }
+        };
+        this.lighting5Handler = function (evt) {
+            let msg = {status: {rssi: evt.rssi}};
+            msg.topic = (rfxcom.lighting5[evt.subtype] || "LIGHTING5_UNKNOWN") + "/" + evt.id;
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                if (evt.subtype === rfxcom.lighting5.LIGHTWAVERF) {
+                    switch (evt.commandNumber) {
+                        case 13:
+                        case 14:
+                        case 15:
+                            msg.payload = evt.command;
+                            node.send(msg);
+                            break;
+
+                        default:
+                            return;
+                    }
+                }
+            }
+        };
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    if (node.rfxtrx) {
+                        node.rfxtrx.removeListener("blinds1", node.blinds1Handler);
+                        node.rfxtrx.removeListener("lighting5", node.lighting5Handler);
+                    }
+                    releasePort(node);
+                });
+                node.rfxtrx.on("blinds1", this.blinds1Handler);
+                node.rfxtrx.on("lighting5", this.lighting5Handler);
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-blinds-in", RfxBlindsInNode);
+
+// An output node for sending messages to blind and curtains motors
+    function RfxBlindsOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+        node.rfyVenetianMode = node.rfxtrxPort.rfyVenetianMode || "EU";
+
+        // Convert the message payload to the appropriate command, depending on the protocol name (subype)
+        const parseCommand = function (protocolName, address, payload) {
+            if (/open/i.test(payload) || payload > 0) {
+                if (protocolName === "BLINDS_T5") {
+                    node.rfxtrx.transmitters[protocolName].down(address);
+                } else if (node.rfxtrx.transmitters[protocolName].packetType === "rfy") {
+                    node.rfxtrx.transmitters[protocolName].venetianOpen(address);
+                } else if (node.rfxtrx.transmitters[protocolName].packetType === "lighting5") {
+                    node.rfxtrx.transmitters[protocolName].relayOpen(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].open(address);
+                }
+            } else if (/close/i.test(payload) || payload < 0) {
+                if (protocolName === "BLINDS_T5") {
+                    node.rfxtrx.transmitters[protocolName].up(address);
+                } else if (node.rfxtrx.transmitters[protocolName].packetType === "rfy") {
+                    node.rfxtrx.transmitters[protocolName].venetianClose(address);
+                } else if (node.rfxtrx.transmitters[protocolName].packetType === "lighting5") {
+                    node.rfxtrx.transmitters[protocolName].relayClose(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].close(address);
+                }
+            } else if (/stop/i.test(payload) || payload === 0) {
+                if (node.rfxtrx.transmitters[protocolName].packetType === "lighting5") {
+                    node.rfxtrx.transmitters[protocolName].relayStop(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].stop(address);
+                }
+            } else if (/confirm|pair|program/i.test(payload)) {
+                if (node.rfxtrx.transmitters[protocolName].packetType === "curtain1" ||
+                    node.rfxtrx.transmitters[protocolName].packetType === "rfy" ||
+                    node.rfxtrx.transmitters[protocolName].packetType === "lighting5") {
+                    node.rfxtrx.transmitters[protocolName].program(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].confirm(address);
+                }
+            } else if (/up/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].up(address);
+            } else if (/down/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].down(address);
+            } else if (/angle|turn/i.test(payload)) {
+                if (/increase|\+/i.test(payload)) {
+                    node.rfxtrx.transmitters[protocolName].venetianIncreaseAngle(address);
+                } else if (/decrease|-/i.test(payload)) {
+                    node.rfxtrx.transmitters[protocolName].venetianDecreaseAngle(address);
+                }
+            } else if (/auto/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].enableSunSensor(address);
+            } else if (/man/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].disableSunSensor(address);
+            } else if (/list/i.test(payload)) {
+                if (node.rfxtrx.transmitters[protocolName].packetType === "rfy") {
+                    node.rfxtrx.transmitters[protocolName].listRemotes(address);
+                }
+            }
+        };
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    let path = [], protocolName, subtype, deviceAddress, unitAddress;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-blinds-out") + ": missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    if (protocolName === "BLINDS_T2" || protocolName === "BLINDS_T4" || protocolName === "BLINDS_T5" ||
+                        protocolName === "BLINDS_T10" || protocolName === "BLINDS_T11") {
+                        unitAddress = 0;
+                        if (path.length > 2) {
+                            node.warn((node.name || "rfx-blinds-out") + ": ignoring unit code");
+                        }
+                    } else if (path.length < 3) {
+                        node.warn((node.name || "rfx-blinds-out") + ": missing unit code");
+                        return;
+                    } else {
+                        unitAddress = parseUnitAddress(path[2]);
+                        if (protocolName === "BLINDS_T3") {
+                            if (unitAddress === 0) {
+                                unitAddress = 0x10;
+                            } else {
+                                unitAddress = unitAddress - 1;
+                            }
+                        }
+                        if (protocolName === "BLINDS_T12") {
+                            if (unitAddress === 0) {
+                                unitAddress = 0x0f;
+                            } else {
+                                unitAddress = unitAddress - 1;
+                            }
+                        }
+                    }
+                    deviceAddress = path.slice(1, 2);
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting5", "curtain1", "blinds1", "rfy"],
+                                                                     {venetianBlindsMode: node.rfyVenetianMode});
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-blinds-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            try {
+                                parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload);
+                            } catch (exception) {
+                                if (exception.message.indexOf("is not a function") >= 0) {
+                                    const alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
+                                    node.warn((node.name || "rfx-blinds-out") + ": Input '" + alexaCommand + msg.payload + "' generated command '" +
+                                        exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                                } else {
+                                    node.warn(exception);
+                                }
+                            }
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-blinds-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-blinds-out", RfxBlindsOutNode);
 
 };
