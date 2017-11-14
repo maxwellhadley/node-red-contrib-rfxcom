@@ -45,6 +45,12 @@ systems use these chips
 
 **rfx-PT2262-out** Sends messages to devices using the PT2262 family of chips.
 
+**rfx-blinds-in** Receives messages from curtains, blinds, and awnings remote controls (also supports the LightwaveRF
+in-line relay)
+
+**rfx-blinds-out** Sends commands to curtains, blinds, and awnings motors, including Somfy/RFY units (also supports the
+LightwaveRF in-line relay)
+
 Basic help text is provided for each node. Additional information is available in the 'RFXmngr.exe' program supplied
 with the RFXtrx433E, and more details may be found in the SDK documentation, available on request from RFXCOM.
 
