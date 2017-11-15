@@ -43,15 +43,15 @@ module.exports = function (RED) {
 
 // An object maintaining a pool of config nodes
     const rfxcomPool = function () {
-        let pool = {}, intervalTimer = null;
+        let pool = {};
 
         const connectTo = function (rfxtrx, node) {
             //noinspection JSUnusedLocalSymbols
             rfxtrx.initialise(function (error, response, sequenceNumber) {
                 node.log("connected: Serial port " + rfxtrx.device);
-                if (intervalTimer !== null) {
-                    clearInterval(intervalTimer);
-                    intervalTimer = null;
+                if (pool[rfxtrx.device].intervalTimer !== null) {
+                    clearInterval(pool[rfxtrx.device].intervalTimer);
+                    pool[rfxtrx.device].intervalTimer = null;
                 }
             });
         };
@@ -71,9 +71,9 @@ module.exports = function (RED) {
                         });
                     });
                     rfxtrx.on("connectfailed", function (msg) {
-                        if (intervalTimer === null) {
+                        if (pool[rfxtrx.device].intervalTimer === null) {
                             node.log("connect failed: " + msg);
-                            intervalTimer = setInterval(function () {
+                            pool[rfxtrx.device].intervalTimer = setInterval(function () {
                                 connectTo(rfxtrx, node)
                             }, rfxtrx.initialiseWaitTime);
                         }
@@ -108,13 +108,13 @@ module.exports = function (RED) {
                         pool[port].references.forEach(function (node) {
                                 showConnectionStatus(node);
                             });
-                        if (intervalTimer === null) {
-                            intervalTimer = setInterval(function () {
+                        if (pool[rfxtrx.device].intervalTimer === null) {
+                            pool[rfxtrx.device].intervalTimer = setInterval(function () {
                                 connectTo(rfxtrx, node)
                             }, rfxtrx.initialiseWaitTime);
                         }
                     });
-                    pool[port] = {rfxtrx: rfxtrx, references: []};
+                    pool[port] = {rfxtrx: rfxtrx, references: [], intervalTimer: null};
                 } else {
                     rfxtrx = pool[port].rfxtrx;
                 }
