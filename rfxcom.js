@@ -448,7 +448,7 @@ module.exports = function (RED) {
         };
         this.lighting6Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
-            msg.topic = (rfxcom.lighting6[evt.subtype] || "LIGHTING6_UNKNOWN") + "/" + evt.id + "/" + evt.groupcode;
+            msg.topic = (rfxcom.lighting6[evt.subtype] || "LIGHTING6_UNKNOWN") + "/" + evt.id + "/" + evt.groupCode;
             if (evt.commandNumber > 1) {
                 msg.topic = msg.topic + "/0";
             } else {
