@@ -22,8 +22,8 @@ The nodes will be added to the palette the next time node-RED is started, under 
 Nodes included in the package
 -----------------------------
 
-**rfx-lights-in** Receives messages from 'lighting' type devices such as remote controls, PIR sensors used as light
-switches, and some types of doorbell.
+**rfx-lights-in** Receives messages from 'lighting' type devices such as remote controls, and PIR sensors used as light
+switches.
 
 **rfx-lights-out** Sends messages to 'lighting' type devices including switches, dimmers, and some types of relay.
 
