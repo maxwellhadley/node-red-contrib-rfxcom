@@ -1065,9 +1065,8 @@ module.exports = function (RED) {
         // that API. If no valid command is recognised, this does nothing (quietly), but if the transmitter throws an
         // Error this function does not catch it
         const parseCommand = function (protocolName, address, payload, alexaCommand, levelRange) {
-            let level, mood;
             if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(payload) || /Percentage/i.test(alexaCommand)) {
-                level = parseDimLevel(payload, alexaCommand, levelRange);
+                let level = parseDimLevel(payload, alexaCommand, levelRange);
                 if (isFinite(level)) {
                     node.rfxtrx.transmitters[protocolName].setLevel(address, level);
                 } else if (level === '+') {
@@ -1080,9 +1079,15 @@ module.exports = function (RED) {
             } else if (/off/i.test(payload) || payload === 0 || payload === false) {
                 node.rfxtrx.transmitters[protocolName].switchOff(address);
             } else if (/mood/i.test(payload)) {
-                mood = parseInt(/([0-9]+)/.exec(payload));
+                let mood = parseInt(/([0-9]+)/.exec(payload));
                 if (isFinite(mood)) {
                     node.rfxtrx.transmitters[protocolName].setMood(address, mood);
+                }
+            } else if (/scene/i.test(payload)) {
+                let sceneNumber = parseInt(/([0-9]+)/.exec(payload));
+                let roomNumber = 1;
+                if (isFinite(sceneNumber)) {
+                    node.rfxtrx.transmitters[protocolName].setScene(address, sceneNumber, roomNumber);
                 }
             } else if (/toggle/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
