@@ -132,6 +132,10 @@ module.exports = function (RED) {
                     if (pool[port].references.length <= 0) {
                         pool[port].rfxtrx.close();
                         pool[port].rfxtrx.removeAllListeners();
+                        if (pool[port].intervalTimer !== null) {
+                            clearInterval(pool[port].intervalTimer);
+                            pool[port].intervalTimer = null;
+                        }
                         delete pool[port].rfxtrx;
                         delete pool[port];
                     }
