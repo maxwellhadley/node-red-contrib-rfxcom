@@ -1032,9 +1032,9 @@ module.exports = function (RED) {
                 if (levelRange.length === 0 || /[0-9]+/.test(payload) === false) {
                     if (/dim.*\+/i.test(payload)) { // 'dim+' means 'bright'
                         return "+";
-                    } else if (/dim.*-/i.test(payload)) {
-                        return "-";
                     } else if (/dim/i.test(payload)) {
+                        return "-";
+                    } else if (/bright.*-/i.test(payload)) { // 'bright-' means 'dim'
                         return "-";
                     } else if (/bright/i.test(payload)) {
                         return "+";
@@ -1047,7 +1047,10 @@ module.exports = function (RED) {
                         return "-";
                     }
                 }
-                value = parseFloat(/[0-9]+(\.[0-9]*)?/.exec(payload)[0]);
+                const match = /[0-9]+(\.[0-9]*)?/.exec(payload);
+                if (match !== null) {
+                    value = parseFloat(match[0]);
+                }
                 if (payload.match(/[0-9] *%/)) {
                     value = value/100;
                 }
@@ -1060,39 +1063,62 @@ module.exports = function (RED) {
             }
         };
 
-        // Parses msg.payload looking for lighting command messages (including Alexa-home command messages), calling
+        // Parse the message payload to obtain the room number, if present. Returns an object holding the room number if
+        // found, (defaulting to 1 if not found,) and the contents of the payload with the interpreted part removed
+        const parseRoomNumber = function (payload) {
+            let roomNumber = 1;
+            const match = /room *([0-9]+)/i.exec(payload);
+            if (match !== null && match.length >= 2) {
+                roomNumber = parseInt(match[1]);
+                payload = payload.replace(match[0], "");
+            }
+            return {payload: payload, number: roomNumber};
+        };
+
+        // Parse the message payload looking for lighting command messages (including Alexa-home command messages), calling
         // the corresponding function in the node-rfxcom API to implement it. All parameter checking is delegated to
-        // that API. If no valid command is recognised, this does nothing (quietly), but if the transmitter throws an
+        // that API. If no valid command is recognised, this function warns the user, but if the transmitter throws an
         // Error this function does not catch it
         const parseCommand = function (protocolName, address, payload, alexaCommand, levelRange) {
             if (/dim|bright|level|%|[0-9]\.|\.[0-9]/i.test(payload) || /Percentage/i.test(alexaCommand)) {
-                let level = parseDimLevel(payload, alexaCommand, levelRange);
+                const room = parseRoomNumber(payload);
+                const level = parseDimLevel(room.payload, alexaCommand, levelRange);
                 if (isFinite(level)) {
                     node.rfxtrx.transmitters[protocolName].setLevel(address, level);
                 } else if (level === '+') {
-                    node.rfxtrx.transmitters[protocolName].increaseLevel(address);
+                    node.rfxtrx.transmitters[protocolName].increaseLevel(address, room.number);
                 } else if (level === '-') {
-                    node.rfxtrx.transmitters[protocolName].decreaseLevel(address);
+                    node.rfxtrx.transmitters[protocolName].decreaseLevel(address, room.number);
+                } else {
+                    node.warn("Don't understand dimming command '" + payload + "'");
                 }
             } else if (/on/i.test(payload) || payload === 1 || payload === true) {
                 node.rfxtrx.transmitters[protocolName].switchOn(address);
             } else if (/off/i.test(payload) || payload === 0 || payload === false) {
                 node.rfxtrx.transmitters[protocolName].switchOff(address);
             } else if (/mood/i.test(payload)) {
-                let mood = parseInt(/([0-9]+)/.exec(payload));
-                if (isFinite(mood)) {
+                const match = /mood *([0-9]+)/i.exec(payload);
+                if (match !== null && match.length >= 2) {
+                    const mood = parseInt(match[1]);
                     node.rfxtrx.transmitters[protocolName].setMood(address, mood);
+                } else {
+                    node.warn("Missing mood number");
                 }
             } else if (/scene/i.test(payload)) {
-                let sceneNumber = parseInt(/([0-9]+)/.exec(payload));
-                let roomNumber = 1;
-                if (isFinite(sceneNumber)) {
-                    node.rfxtrx.transmitters[protocolName].setScene(address, sceneNumber, roomNumber);
+                const room = parseRoomNumber(payload);
+                const match = /scene *([0-9]+)/i.exec(room.payload);
+                if (match !== null && match.length >= 2) {
+                    const sceneNumber = parseInt(match[1]);
+                    node.rfxtrx.transmitters[protocolName].setScene(address, sceneNumber, room.number);
+                } else {
+                    node.warn("Missing scene number");
                 }
             } else if (/toggle/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
             } else if (/program|learn/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].program(address);
+            } else {
+                node.warn("Don't understand payload '" + payload + "'");
             }
         };
 
@@ -1107,7 +1133,7 @@ module.exports = function (RED) {
                 node.on("input", function (msg) {
                     // Get the device address from the node topic, or the message topic if the node topic is undefined;
                     // parse the device command from the message payload; and send the appropriate command to the address
-                    let path = [], protocolName, subtype, deviceAddress, unitAddress, levelRange, lastCommand, topic;
+                    let path = [], protocolName, subtype, deviceAddress, unitAddress, lastCommand, topic;
                     if (node.topicSource === "node" && node.topic !== undefined) {
                         path = node.topic;
                     } else if (msg.topic !== undefined) {
@@ -1120,22 +1146,23 @@ module.exports = function (RED) {
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                     deviceAddress = path.slice(1, -1);
                     unitAddress = parseUnitAddress(path.slice(-1)[0]);
-                    // The subtype is needed because subtypes within the same protocol might have different dim level ranges
                     try {
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "lighting2", "lighting3",
                                                                                "lighting5", "lighting6", "homeConfort"]);
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-lights-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
+                            let levelRange = [];
                             switch (node.rfxtrx.transmitters[protocolName].packetType) {
                                 case "lighting1" :
                                 case "lighting6" :
                                 case "homeConfort" :
-                                    levelRange = [];
                                     break;
 
                                 case "lighting2" :
-                                    levelRange = [0, 15];
+                                    if (node.rfxtrx.transmitters[protocolName].isSubtype("KAMBROOK")) {
+                                        levelRange = [0, 15];
+                                    }
                                     break;
 
                                 case "lighting3" :
@@ -1143,43 +1170,49 @@ module.exports = function (RED) {
                                     break;
 
                                 case "lighting5" :
-                                    levelRange = [0, 31];
+                                    if (node.rfxtrx.transmitters[protocolName].isSubtype("LIGHTWAVERF")) {
+                                        levelRange = [0, 31];
+                                    } else if (node.rfxtrx.transmitters[protocolName].isSubtype("IT")) {
+                                        levelRange = [1, 8];
+                                    } else if (node.rfxtrx.transmitters[protocolName].isSubtype(["MDREMOTE", "MDREMOTE_108"])) {
+                                        levelRange = [1, 3];
+                                    } else if (node.rfxtrx.transmitters[protocolName].isSubtype("MDREMOTE_107")) {
+                                        levelRange = [1, 6];
+                                    }
                                     break;
                             }
-                            if (levelRange !== undefined) {
-                                try {
-                                    // Send the command for the first time
-                                    parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, msg.command, levelRange);
-                                    // If we reach this point, the command did not throw an error. Check if we should
-                                    // retransmit it & set the Timeout or Interval as appropriate
-                                    if (node.retransmit !== "none") {
-                                        topic = path.join("/");
-                                        // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
-                                        // function context, where the function lastCommand() can find them
-                                        lastCommand = (function () {
-                                            let protocol = protocolName, address = deviceAddress.concat(unitAddress),
-                                                payload = msg.payload, alexaCommand = msg.command,
-                                                range = levelRange, key = topic;
-                                            return function () {
-                                                parseCommand(protocol, address, payload, alexaCommand, range);
-                                                if (node.mustDelete) {
-                                                    delete(node.retransmissions[key]);
-                                                }
-                                            };
-                                        }());
-                                        if (node.retransmissions.hasOwnProperty(topic)) {
-                                            node.clearRetransmission(node.retransmissions[topic]);
-                                        }
-                                        node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+                            try {
+                                // Send the command for the first time
+                                parseCommand(protocolName, deviceAddress.concat(unitAddress), msg.payload, msg.command, levelRange);
+                                // If we reach this point, the command did not throw an error. Check if we should
+                                // retransmit it & set the Timeout or Interval as appropriate
+                                if (node.retransmit !== "none") {
+                                    topic = path.join("/");
+                                    // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                                    // function context, where the function lastCommand() can find them
+                                    lastCommand = (function () {
+                                        let protocol = protocolName, address = deviceAddress.concat(unitAddress),
+                                            payload = msg.payload, alexaCommand = msg.command,
+                                            range = levelRange, key = topic;
+                                        return function () {
+                                            parseCommand(protocol, address, payload, alexaCommand, range);
+                                            if (node.mustDelete) {
+                                                delete(node.retransmissions[key]);
+                                            }
+                                        };
+                                    }());
+                                    if (node.retransmissions.hasOwnProperty(topic)) {
+                                        node.clearRetransmission(node.retransmissions[topic]);
                                     }
-                                } catch (exception) {
-                                    if (exception.message.indexOf("is not a function") >= 0) {
-                                        const alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
-                                        node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
-                                            exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
-                                    } else {
-                                        node.warn(exception);
-                                    }
+                                    node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+                                }
+                            } catch (exception) {
+                                if (exception.message.indexOf("is not a function") >= 0) {
+                                    const alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
+                                    node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
+                                        exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                                } else {
+                                    node.warn(exception);
                                 }
                             }
                         }
