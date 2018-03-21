@@ -88,7 +88,7 @@ module.exports = function (RED) {
                             });
                     });
                     rfxtrx.on("response", function (message, seqnbr, responseCode) {
-                        if (responseCode > 0) {
+                        if (responseCode > 1) {
                             node.warn("RFXCOM: " + message + " (" + responseCode + ")");
                         }
                     });
