@@ -676,6 +676,15 @@ module.exports = function (RED) {
                 if (evt.hasOwnProperty("temperature")) {
                     msg.payload.temperature = {value: evt.temperature, unit: "degC"};
                 }
+                if (evt.hasOwnProperty("setpoint")) {
+                    msg.payload.setpoint = {value: evt.setpoint, unit: "degC"};
+                    if (evt.hasOwnProperty("status")) {
+                        msg.payload.status = evt.status;
+                    }
+                    if (evt.hasOwnProperty("mode")) {
+                        msg.payload.mode = evt.mode;
+                    }
+                }
                 if (evt.hasOwnProperty("barometer")) {
                     msg.payload.pressure = {value: evt.barometer, unit: "hPa"};
                 }
@@ -733,6 +742,9 @@ module.exports = function (RED) {
         this.temphumbaroHandler = function(evt) {
             sendWeatherMessage(evt, {topic: (rfxcom.tempHumBaro1[evt.subtype] || "TEMPHUMBARO1_UNKNOWN") + "/" + evt.id})
         };
+        this.thermostat1Handler = function(evt) {
+            sendWeatherMessage(evt, {topic: (rfxcom.thermostat1[evt.subtype] || "THERMOSTAT1_UNKNOWN") + "/" + evt.id})
+        };
         this.rainHandler = function(evt) {
             sendWeatherMessage(evt, {topic: (rfxcom.rain1[evt.subtype] || "RAIN1_UNKNOWN") + "/" + evt.id})
         };
@@ -754,6 +766,7 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("humidity1", node.humidityHandler);
                         node.rfxtrx.removeListener("temperaturehumidity1", node.temperaturehumidityHandler);
                         node.rfxtrx.removeListener("temphumbaro1", node.temphumbaroHandler);
+                        node.rfxtrx.removeListener("thermostat1", node.thermostat1Handler);
                         node.rfxtrx.removeListener("rain1", node.rainHandler);
                         node.rfxtrx.removeListener("wind1", node.windHandler);
                         node.rfxtrx.removeListener("uv1", node.uvHandler);
@@ -766,6 +779,7 @@ module.exports = function (RED) {
                 node.rfxtrx.on("humidity1", this.humidityHandler);
                 node.rfxtrx.on("temperaturehumidity1", this.temperaturehumidityHandler);
                 node.rfxtrx.on("temphumbaro1", this.temphumbaroHandler);
+                node.rfxtrx.on("thermostat1", this.thermostat1Handler);
                 node.rfxtrx.on("rain1", this.rainHandler);
                 node.rfxtrx.on("wind1", this.windHandler);
                 node.rfxtrx.on("uv1", this.uvHandler);
