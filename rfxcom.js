@@ -1371,6 +1371,95 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("rfx-doorbell-out", RfxDoorbellOutNode);
 
+// An output node for sending messages to Smartwares TRVs
+    function RfxTRVOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+        // Generate the device command depending on the message payload and/or command
+        const parseCommand = function (protocolName, address, msg) {
+            let temperature = NaN;
+            // Check for an Alexa command
+            if (msg.hasOwnProperty("command")) {
+                if (msg.command === "SetTargetTemperatureRequest") {
+                    temperature = msg.payload;
+                } else if (msg.command === "TurnOnRequest") {
+                    msg.payload = "ON'";
+                } else if (msg.command === "TurnOffRequest") {
+                    msg.payload = "OFF";
+                } else {
+                    node.warn("Unsupported Alexa command: " + msg.command)
+                }
+            } else if (typeof msg.payload === "string") {
+                temperature = parseFloat(msg.payload);
+            } else if (typeof msg.payload === "number") {
+                temperature = msg.payload;
+            }
+            try {
+                if (!isNaN(temperature)){
+                    node.rfxtrx.transmitters[protocolName].setTemperature(address, temperature);
+                } else if (/day|on|normal|heat/i.test(msg.payload)) {
+                    node.rfxtrx.transmitters[protocolName].setDayMode(address);
+                } else if (/night|off|setback|away/i.test(msg.payload)) {
+                    node.rfxtrx.transmitters[protocolName].setNightMode(address);
+                }
+            } catch (exception) {
+                node.warn(exception);
+            }
+        };
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    let path = [], protocolName, subtype, deviceAddress, unitAddress;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-trv-out ") + ": missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    deviceAddress = path.slice(1, 2);
+                    if (protocolName === 'SMARTWARES') {
+                        unitAddress = parseUnitAddress(path.slice(-1)[0]);
+                    } else {
+                        unitAddress = [];
+                    }
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["radiator1"]);
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-trv-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            parseCommand(protocolName, deviceAddress.concat(unitAddress), msg);
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-trv-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-trv-out", RfxTRVOutNode);
+
 // An input node for listening to messages from blinds remote controls
     function RfxBlindsInNode(n) {
         RED.nodes.createNode(this, n);
