@@ -676,6 +676,15 @@ module.exports = function (RED) {
                 if (evt.hasOwnProperty("temperature")) {
                     msg.payload.temperature = {value: evt.temperature, unit: "degC"};
                 }
+                if (evt.hasOwnProperty("setpoint")) {
+                    msg.payload.setpoint = {value: evt.setpoint, unit: "degC"};
+                    if (evt.hasOwnProperty("status")) {
+                        msg.payload.status = evt.status;
+                    }
+                    if (evt.hasOwnProperty("mode")) {
+                        msg.payload.mode = evt.mode;
+                    }
+                }
                 if (evt.hasOwnProperty("barometer")) {
                     msg.payload.pressure = {value: evt.barometer, unit: "hPa"};
                 }
@@ -733,6 +742,9 @@ module.exports = function (RED) {
         this.temphumbaroHandler = function(evt) {
             sendWeatherMessage(evt, {topic: (rfxcom.tempHumBaro1[evt.subtype] || "TEMPHUMBARO1_UNKNOWN") + "/" + evt.id})
         };
+        this.thermostat1Handler = function(evt) {
+            sendWeatherMessage(evt, {topic: (rfxcom.thermostat1[evt.subtype] || "THERMOSTAT1_UNKNOWN") + "/" + evt.id})
+        };
         this.rainHandler = function(evt) {
             sendWeatherMessage(evt, {topic: (rfxcom.rain1[evt.subtype] || "RAIN1_UNKNOWN") + "/" + evt.id})
         };
@@ -754,6 +766,7 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("humidity1", node.humidityHandler);
                         node.rfxtrx.removeListener("temperaturehumidity1", node.temperaturehumidityHandler);
                         node.rfxtrx.removeListener("temphumbaro1", node.temphumbaroHandler);
+                        node.rfxtrx.removeListener("thermostat1", node.thermostat1Handler);
                         node.rfxtrx.removeListener("rain1", node.rainHandler);
                         node.rfxtrx.removeListener("wind1", node.windHandler);
                         node.rfxtrx.removeListener("uv1", node.uvHandler);
@@ -766,6 +779,7 @@ module.exports = function (RED) {
                 node.rfxtrx.on("humidity1", this.humidityHandler);
                 node.rfxtrx.on("temperaturehumidity1", this.temperaturehumidityHandler);
                 node.rfxtrx.on("temphumbaro1", this.temphumbaroHandler);
+                node.rfxtrx.on("thermostat1", this.thermostat1Handler);
                 node.rfxtrx.on("rain1", this.rainHandler);
                 node.rfxtrx.on("wind1", this.windHandler);
                 node.rfxtrx.on("uv1", this.uvHandler);
@@ -1356,6 +1370,411 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-doorbell-out", RfxDoorbellOutNode);
+
+// An output node for sending messages to Smartwares TRVs
+    function RfxTRVOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+        // Generate the device command depending on the message payload and/or command
+        const parseCommand = function (protocolName, address, msg) {
+            let temperature = NaN;
+            // Check for an Alexa command
+            if (msg.hasOwnProperty("command")) {
+                if (msg.command === "SetTargetTemperatureRequest") {
+                    temperature = msg.payload;
+                } else if (msg.command === "TurnOnRequest") {
+                    msg.payload = "ON'";
+                } else if (msg.command === "TurnOffRequest") {
+                    msg.payload = "OFF";
+                } else {
+                    node.warn("Unsupported Alexa command: " + msg.command)
+                }
+            } else if (typeof msg.payload === "string") {
+                temperature = parseFloat(msg.payload);
+            } else if (typeof msg.payload === "number") {
+                temperature = msg.payload;
+            }
+            try {
+                if (!isNaN(temperature)){
+                    node.rfxtrx.transmitters[protocolName].setTemperature(address, temperature);
+                } else if (/day|on|normal|heat/i.test(msg.payload)) {
+                    node.rfxtrx.transmitters[protocolName].setDayMode(address);
+                } else if (/night|off|setback|away/i.test(msg.payload)) {
+                    node.rfxtrx.transmitters[protocolName].setNightMode(address);
+                }
+            } catch (exception) {
+                node.warn(exception);
+            }
+        };
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    let path = [], protocolName, subtype, deviceAddress, unitAddress;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-trv-out ") + ": missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    deviceAddress = path.slice(1, 2);
+                    if (protocolName === 'SMARTWARES') {
+                        unitAddress = parseUnitAddress(path.slice(-1)[0]);
+                    } else {
+                        unitAddress = [];
+                    }
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["radiator1"]);
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-trv-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            parseCommand(protocolName, deviceAddress.concat(unitAddress), msg);
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-trv-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-trv-out", RfxTRVOutNode);
+
+// An output node for sending messages to stoves and heating controllers
+    function RfxHeaterOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+        // Call the device command function depending on the message payload and/or command
+        const parseCommand = function (protocolName, address, msg) {
+            let percentage = NaN, command = msg.payload;
+            // Check for an Alexa command
+            if (msg.hasOwnProperty("command")) {
+                if (msg.command === "SetPercentageRequest") {
+                    percentage = msg.payload;
+                    command = "SET";
+                } else if (msg.command === "IncrementPercentageRequest") {
+                    percentage = msg.payload;
+                    command = "UP";
+                } else if (msg.command === "DecrementPercentageRequest") {
+                    percentage = msg.payload;
+                    command = "DOWN";
+                } else if (msg.command === "TurnOnRequest") {
+                    command = "ON";
+                } else if (msg.command === "TurnOffRequest") {
+                    command = "OFF";
+                } else {
+                    command = "Alexa: " + msg.command;
+                }
+            } else if (typeof msg.payload === "number") {
+                // A number 1-5 is translated to a percentage 20% - 100%, 0 means OFF
+                // This is to suit the MCZ devices 'flame power' range
+                if (msg.payload <= 0) {
+                    command = "OFF";
+                } else if (!isNaN(msg.payload)) {
+                    percentage = msg.payload*20;
+                    command = "SET";
+                }
+            } else if (typeof msg.payload === "boolean") {
+                // Boolean means ON or OFF
+                command = msg.payload ? "ON" : "OFF";
+            } else if (typeof msg.payload === "string") {
+                // If the string contains a number, it is either a burner number (1-2), a level (1-5), or a percentage (20%-100%)
+                const numericField = /[+-]?(([0-9]+\.[0-9]*)|(\.[0-9]+)|([0-9]+))(?![0-9])/.exec(msg.payload);
+                if (numericField !== null) {
+                    percentage = parseFloat(numericField[0]);
+                    // Check for the Mertik G6R-H4TB burner number
+                    if (/ON|HEA/i.test(msg.payload)) {
+                        switch (percentage) {
+                            case 1:
+                                command = "ON";
+                                break;
+                            case 2:
+                                command = "ON2";
+                                break;
+                            default:
+                                command = msg.payload;
+                        }
+                    } else if (/OFF/i.test(msg.payload)) {
+                        switch (percentage) {
+                            case 1:
+                                command = "OFF";
+                                break;
+                            case 2:
+                                command = "OFF2";
+                                break;
+                            default:
+                                command = msg.payload;
+                        }
+                    } else {
+                        if (!msg.payload.match(/[0-9.] *%/)) {
+                        percentage = percentage*20;
+                        }
+                        // Zero % means 'off'
+                        if (percentage === 0) {
+                            command = "OFF";
+                        } else {
+                            command = "SET";
+                        }
+                    }
+                // Normalise remaining string commands
+                } else if (/ON|HEA/i.test(msg.payload)) {
+                    command = "ON";
+                } else if (/COO/i.test(msg.payload)) {
+                    command = "COOL";
+                } else if (/OFF/i.test(msg.payload)) {
+                    command = "OFF";
+                } else if (/RUN *UP/i.test(msg.payload)) {
+                    command = "RUNUP";
+                } else if (/RUN *DOW/i.test(msg.payload)) {
+                    command = "RUNDOWN";
+                } else if (/STO/i.test(msg.payload)) {
+                    command = "STOP";
+                } else if (/UP|INC|\+/i.test(msg.payload)) {
+                    command = "UP";
+                } else if (/DOW|DEC|-/i.test(msg.payload)) {
+                    command = "DOWN";
+                } else if (/program|learn/i.test(msg.payload)) {
+                    command = "PROGRAM";
+                }
+            }
+
+            // If msg.payload is an object, it must be interpreted depending on the packet type
+            if (/MCZ/i.test(protocolName)) {
+                // We expect some or all of:
+                //    fanSpeed - a single number applies to all fans, or an array
+                //    mode (or command) - "On", "Man", "Auto", or "Eco"
+                //    beep - true or false
+                //    flamePower - 1 to 5
+                let params = {};
+                if (msg.payload.hasOwnProperty("beep")) {
+                    params.beep = msg.payload.beep;
+                }
+                if (msg.payload.hasOwnProperty("fanSpeed")) {
+                    if (typeof msg.payload.fanSpeed === "number") {
+                        params.fanSpeed = [msg.payload.fanSpeed, msg.payload.fanSpeed, msg.payload.fanSpeed];
+                    } else {
+                        params.fanSpeed = msg.payload.fanSpeed;
+                    }
+                }
+                if (msg.payload.hasOwnProperty("flamePower")) {
+                    params.flamePower = msg.payload.flamePower;
+                }
+                if (msg.payload.hasOwnProperty("mode")) {
+                    params.mode = msg.payload.mode;
+                } else if (msg.payload.hasOwnProperty("command")) {
+                    params.mode = msg.payload.command;
+                }
+                if ("flamePower" in params) {
+                    if ("mode" in params === false) {
+                        params.mode = "Man";
+                    }
+                // Handle the commands generated by a msg.payload which is not an object
+                } else if ("mode" in params) {
+                    params.flamePower = 1;
+                } else if (command === "OFF") {
+                    params.mode = "Off";
+                    params.flamePower = 1;
+                } else if (command === "ON") {
+                    params.mode = "Auto";
+                    params.flamePower = 1;
+                } else if (command === "SET") {
+                    // "set 0%" means turn off (e.g. from an Alexa command)
+                    if (percentage <= 0) {
+                        params.mode = "Off";
+                        params.flamePower = 1;
+                    } else {
+                        params.mode = "Man";
+                        params.flamePower = Math.max(percentage/20, 1);
+                    }
+                }
+                if ("mode" in params === false || "flamePower" in params === false) {
+                    if (typeof command === "string") {
+                        node.warn("Unsupported command '" + command + "'");
+                    } else {
+                        node.warn("MCZ: missing mode/flamePower parameter in message object " + JSON.stringify(command));
+                    }
+                } else {
+                    try {
+                        node.rfxtrx.transmitters[protocolName].sendMessage(address, params);
+                    } catch (exception) {
+                        node.warn(exception);
+                    }
+                }
+            } else if (/DIGIMAX/i.test(protocolName)) {
+                let params = {setpoint: 20, mode: 0, temperature:20};
+                // The only essential object parameter is status, the rest are passed on if they exist
+                if (msg.payload.hasOwnProperty("status")) {
+                    params.status = msg.payload.status;
+                    if (msg.payload.hasOwnProperty("setpoint")) {
+                        params.setpoint = msg.payload.setpoint.value;
+                    }
+                    if (msg.payload.hasOwnProperty("mode")) {
+                        params.mode = msg.payload.mode;
+                    }
+                    if (msg.payload.hasOwnProperty("temperature")) {
+                        params.temperature = msg.payload.temperature.value;
+                    }
+                } else if (command === "ON") {
+                    params.status = 1;
+                } else if (command === "OFF") {
+                    params.status = 2;
+                } else if (command === "COOL") {
+                    params.mode = 1;
+                    params.status = 1;
+                } else if (command === "SET") {
+                    if (percentage > 0) {
+                        params.status = 1;
+                    } else {
+                        params.status = 2;
+                    }
+                }
+                if (params.status === undefined) {
+                    node.warn("DIGIMAX: missing status parameter in message object " + JSON.stringify(command));
+                } else {
+                    try {
+                        node.rfxtrx.transmitters[protocolName].sendMessage(address, params);
+                    } catch (exception) {
+                        node.warn(exception);
+                    }
+                }
+            } else {
+                // Other device types don't accept object payloads, commands only
+                try {
+                    switch (command) {
+                        case "ON":
+                            node.rfxtrx.transmitters[protocolName].switchOn(address);
+                            break;
+
+                        case "OFF":
+                            node.rfxtrx.transmitters[protocolName].switchOff(address);
+                            break;
+
+                        case "ON2":
+                            node.rfxtrx.transmitters[protocolName].switchOn2(address);
+                            break;
+
+                        case "OFF2":
+                            node.rfxtrx.transmitters[protocolName].switchOff2(address);
+                            break;
+
+                        case "UP":
+                            node.rfxtrx.transmitters[protocolName].up(address);
+                            break;
+
+                        case "DOWN":
+                            node.rfxtrx.transmitters[protocolName].down(address);
+                            break;
+
+                        case "RUNUP":
+                            node.rfxtrx.transmitters[protocolName].runUp(address);
+                            break;
+
+                        case "RUNDOWN":
+                            node.rfxtrx.transmitters[protocolName].runDown(address);
+                            break;
+
+                        case "STOP":
+                            node.rfxtrx.transmitters[protocolName].stop(address);
+                            break;
+
+                        case "PROGRAM":
+                            node.rfxtrx.transmitters[protocolName].program(address);
+                            break;
+
+                        case "SET":
+                            if (percentage > 0) {
+                                node.rfxtrx.transmitters[protocolName].switchOn(address);
+                            } else {
+                                node.rfxtrx.transmitters[protocolName].switchOff(address);
+                            }
+                            break;
+
+                        default:
+                            if (typeof command === "string") {
+                                node.warn("Unsupported command '" + command + "'");
+                            } else {
+                                node.warn("Don't understand message object " + JSON.stringify(command));
+                            }
+                    }
+                } catch (exception) {
+                    if (exception.message.indexOf("is not a function") >= 0) {
+                        const alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
+                        node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
+                            exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                    } else {
+                        node.warn(exception);
+                    }
+                }
+            }
+        };
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    let path = [], protocolName, subtype, deviceAddress, unitAddress;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-heat-out ") + ": missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    deviceAddress = path.slice(1, 2);
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["thermostat1", "thermostat2", "thermostat3", "thermostat4"]);
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-heat-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            parseCommand(protocolName, deviceAddress, msg);
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-heat-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-heat-out", RfxHeaterOutNode);
 
 // An input node for listening to messages from blinds remote controls
     function RfxBlindsInNode(n) {
