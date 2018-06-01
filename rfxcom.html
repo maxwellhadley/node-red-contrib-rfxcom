@@ -28,6 +28,11 @@
         <input type="text" id="node-config-input-port" placeholder="/dev/ttyUSB0" style="width:61.3%;">
     </div>
     <div class="form-row">
+        <label for="node-config-input-enableDebug">&nbsp;</label>
+        <input type="checkbox" id="node-config-input-enableDebug" style="display:inline-block; width:15px; vertical-align:baseline;">
+        <span>Show debug messages on the console</span>
+    </div>
+    <div class="form-row">
         <label for="node-config-input-rfyVenetianMode" style="width:65% !important">
               <i class="fa fa-cog"></i> Somfy/RFY venetian blinds command mode</label>
         <select id="node-config-input-rfyVenetianMode" style="width:18% !important">
@@ -42,6 +47,9 @@
 Enter the serial port device name where the RFXtrx433 transceiver is located.
 </p>
 <p>
+Enable the 'Show debug' option to log all serial communication with this RFXtrx433 transceiver to the console.
+</p>
+<p>
 Select the Somfy venetian blind command mode to be used by all rfx-blinds-out nodes using this transceiver.
 </p>
 </script>
@@ -50,7 +58,8 @@ Select the Somfy venetian blind command mode to be used by all rfx-blinds-out no
     RED.nodes.registerType('rfxtrx-port', {
         category: 'config',
         defaults: {
-            port: { value:"", required:true },
+            port: { value: "", required: true },
+            enableDebug: {value: false, required: true },
             rfyVenetianMode: {value: "EU", required: true}
         },
         label: function () {

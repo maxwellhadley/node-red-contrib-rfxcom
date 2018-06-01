@@ -26,9 +26,9 @@ module.exports = function (RED) {
     const rfxcom = require("rfxcom");
 
 // Set the rfxcom debug option from the environment variable
-    let debugOption = {};
+    let enableAllDebug = false;
     if (process.env.hasOwnProperty("RED_DEBUG") && process.env.RED_DEBUG.indexOf("rfxcom") >= 0) {
-        debugOption = {debug: true};
+        enableAllDebug = true;
     }
 
 // The config node holding the (serial) port device path for one or more rfxcom family nodes
@@ -36,6 +36,7 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, n);
         this.port = n.port;
         this.rfyVenetianMode = n.rfyVenetianMode || "EU";
+        this.enableDebug = n.enableDebug || false;
     }
 
 // Register the config node
@@ -57,13 +58,14 @@ module.exports = function (RED) {
         };
 
         return {
-            get: function (node, port, options) {
+            get: function (node, rfxtrxPort) {
                 // Returns the RfxCom object associated with port, or creates a new RfxCom object,
-                // associates it with the port, and returns it. 'port' is the device file path to
-                // the pseudo-serialport, e.g. '/dev/tty.usb-123456'
+                // associates it with the port, and returns it. 'rfxtrxPort' is the config node holding
+                // the device file path to the pseudo-serialport, e.g. '/dev/tty.usb-123456'
                 let rfxtrx;
+                const port = rfxtrxPort.port;
                 if (!pool[port]) {
-                    rfxtrx = new rfxcom.RfxCom(port, options || debugOption);
+                    rfxtrx = new rfxcom.RfxCom(port, (enableAllDebug || rfxtrxPort.enableDebug) ? {debug: true} : {});
                     rfxtrx.on("connecting", function () {
                         node.log("connecting to " + port);
                         pool[port].references.forEach(function (node) {
@@ -478,7 +480,7 @@ module.exports = function (RED) {
             }
         };
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -530,7 +532,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -577,7 +579,7 @@ module.exports = function (RED) {
         }
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 getRfxcomSubtype(node.rfxtrx, "PT2262", ["lighting4"]);
@@ -755,7 +757,7 @@ module.exports = function (RED) {
             sendWeatherMessage(evt, {topic: (rfxcom.uv1[evt.subtype] || "UV1_UNKNOWN") + "/" + evt.id})
         };
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -844,7 +846,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -978,7 +980,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1141,7 +1143,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1277,7 +1279,7 @@ module.exports = function (RED) {
             }
         };
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1326,7 +1328,7 @@ module.exports = function (RED) {
         };
         
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1415,7 +1417,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1736,7 +1738,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1823,7 +1825,7 @@ module.exports = function (RED) {
             }
         };
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
@@ -1914,7 +1916,7 @@ module.exports = function (RED) {
         };
 
         if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort.port);
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
                 showConnectionStatus(node);
                 node.on("close", function () {
