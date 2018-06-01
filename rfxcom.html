@@ -437,7 +437,7 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
     });
 </script>
 
-<!-- This is a transmitter node for thermostatic radiator valvess -->
+<!-- This is a transmitter node for thermostatic radiator valves -->
 <script type="text/x-red" data-template-name="rfx-trv-out">
     <div class="form-row node-input-port">
         <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
@@ -463,14 +463,17 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
 <!-- Help text for rfx-trv-out -->
 <script type="text/x-red" data-help-name="rfx-trv-out">
 <p>
-Sends commands Smartwares to wireless TRVs using an RFXtrx433 transceiver
+Sends commands to Smartwares wireless TRVs using an RFXtrx433 transceiver
 </p>
 <p>
 A numeric message payload, or a string containing a number, controls the setpoint temperature. A payload of
-"Day" or "Night" sets the normal/setback mode. Also understands Alexa Node-RED Home Skill coomands to set the
-temperature and switch "on" or "Off"
+"Day" or "Night" sets the normal/setback mode. Also understands Alexa Node-RED Home Skill commands to set the
+temperature and switch "On" or "Off"
 </p>
-</script>
+<p>The input message topic is the TRV 'address'. Alternatively, the same device address can be used for all messages.
+Addresses take the form '<b>SMARTWARES</b>/<b>address</b>/<b>unit code</b>', where <b>device address</b> is the address
+of the remote controller, 0x01 to 0x3ffffff, and <b>unit code</b> is the TRV channel number, 1 to 16.
+</p></script>
 
 <script type="text/javascript">
     RED.nodes.registerType('rfx-trv-out', {
@@ -492,6 +495,114 @@ temperature and switch "on" or "Off"
         label: function() {
             var rfxtrxNode = RED.nodes.node(this.rfxtrx);
             return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-trv");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for boiler controls and heaters -->
+<script type="text/x-red" data-template-name="rfx-heat-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-heat-out -->
+<script type="text/x-red" data-help-name="rfx-heat-out">
+<p>
+Sends commands to stoves, boiler controls, and other heaters using an RFXtrx433 transceiver
+</p>
+<p>The input message topic is the device 'address'. The input message payload is the command. Alternatively, the
+same device address can be used for all messages.
+</p>
+<p>
+Addresses take the form '<b>type</b>/<b>device address</b>', where <b>type</b> is the name of the
+family of devices (see RFXCOM documentation), and <b>device address</b> is the address of the remote device.
+For example 'G6R_H4T1/0xce' is a Mertix/Maxitrol gas fire with address 0xce, and 'HE105/0x03' is
+a HomeEasy boiler control relay with its address switches set to 0 0 0 1 1.
+</p>
+<p>
+Commands vary depending on device type. All support 'On' & 'Off' (or equivalently <b>true</b> & <b>false</b>). Digimax
+thermostat receivers also support 'heat' & 'cool'. Numbers are interpreted either as On or Off (0 or >0), or as the flame
+power setting in the range 1 to 5 for MCZ pellet stoves. A string containing a number is interpreted in the same way,
+unless it is a percentage - e.g. "40%" means flame power 2. A string containing "+" or "-" (or "up" & "down")
+tells a Maxitrol fire to increase or decrease the flame setting. Use "On 2"/"Off 2" to control the second burner on
+a Maxitrol G6R-H4TB, and "Run up"/"Run down"/"Stop" to control the modulating burner on G6R-H4T1 stoves.
+</p>
+<p>
+MCZ pellet stoves and Digimax thermostat receivers also accept object message payloads. For Digimax, the only object
+parameter required is 'status' - 1 means demand is required (heating or cooling), 2 means no demand. The rfx-sensor node
+will receive Digimax thermostat units and generate messages containing objects compatible with this format.
+</p>
+<p>
+The MCZ object format parameters are:
+</p>
+<table>
+<tr><td>fanSpeed</td><td>a single number applies to all fans, or an array. Values are 0 to 5, or 6 for 'auto'</td></tr>
+<tr><td>mode</td><td>"On", "Man", "Auto", or "Eco"</td></tr>
+<tr><td>beep</td><td>true or false</td></tr>
+<tr><td>flamePower</td><td>1 to 5</td></tr>
+</table>
+<p>
+If any fan speed is 0, flamePower must be 1. The flamePower parameter is mandatory unless mode is "Off" - the others
+are optional. Fan speeds default to 'auto' (6).
+</p>
+<p>
+Appropriate Alexa Node-RED Home Skill command messages are also accepted by all device types.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-heat-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-heat");
         },
         labelStyle: function() {
             return this.name ? "node_label_italic" : "";
