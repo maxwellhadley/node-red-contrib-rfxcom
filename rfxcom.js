@@ -804,7 +804,11 @@ module.exports = function (RED) {
 
         const node = this;
 
-        const sendMeterMessage = function (evt, msg) {
+        const sendMeterMessage = function (evt, packetType, msg) {
+            // Discard all rfxMeter messages that are not simple counts
+            if (packetType === 0x71 && evt.subtype !== 0) {
+                return;
+            }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.status = {rssi: evt.rssi};
                 if (evt.hasOwnProperty("batteryLevel")) {
@@ -829,20 +833,26 @@ module.exports = function (RED) {
                 if (evt.hasOwnProperty("frequency")) {
                     msg.payload.frequency = {value: evt.frequency, unit: "Hz"}
                 }
+                if (evt.hasOwnProperty("counter")) {
+                    msg.payload.counter = {value: evt.counter, unit: "Count"}
+                }
                 node.send(msg);
             }
         };
-        this.elec1Handler = function (evt) {
-            sendMeterMessage(evt, {topic: (rfxcom.elec1[evt.subtype] || "ELEC1_UNKNOWN") + "/" + evt.id})
+        this.elec1Handler = function (evt, packetType) {
+            sendMeterMessage(evt, packetType, {topic: (rfxcom.elec1[evt.subtype] || "ELEC1_UNKNOWN") + "/" + evt.id})
         };
-        this.elec23Handler = function (evt) {
-            sendMeterMessage(evt, {topic: (rfxcom.elec23[evt.subtype] || "ELEC23_UNKNOWN") + "/" + evt.id})
+        this.elec23Handler = function (evt, packetType) {
+            sendMeterMessage(evt, packetType, {topic: (rfxcom.elec23[evt.subtype] || "ELEC23_UNKNOWN") + "/" + evt.id})
         };
-        this.elec4Handler = function (evt) {
-            sendMeterMessage(evt, {topic: (rfxcom.elec4[evt.subtype] || "ELEC4_UNKNOWN") + "/" + evt.id})
+        this.elec4Handler = function (evt, packetType) {
+            sendMeterMessage(evt, packetType, {topic: (rfxcom.elec4[evt.subtype] || "ELEC4_UNKNOWN") + "/" + evt.id})
         };
-        this.elec5Handler = function (evt) {
-            sendMeterMessage(evt, {topic: (rfxcom.elec5[evt.subtype] || "ELEC5_UNKNOWN") + "/" + evt.id})
+        this.elec5Handler = function (evt, packetType) {
+            sendMeterMessage(evt, packetType, {topic: (rfxcom.elec5[evt.subtype] || "ELEC5_UNKNOWN") + "/" + evt.id})
+        };
+        this.rfxmeterHandler = function (evt, packetType) {
+            sendMeterMessage(evt, packetType, {topic: (rfxcom.rfxMeter[evt.subtype] || "RFXMETER_UNKNOWN") + "/" + evt.id})
         };
 
         if (node.rfxtrxPort) {
@@ -855,6 +865,7 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("elec23", node.elec1Handler);
                         node.rfxtrx.removeListener("elec4", node.elec1Handler);
                         node.rfxtrx.removeListener("elec5", node.elec1Handler);
+                        node.rfxtrx.removeListener("rfxmeter", node.rfxmeterHandler);
                     }
                     releasePort(node);
                 });
@@ -862,6 +873,7 @@ module.exports = function (RED) {
                 node.rfxtrx.on("elec23", this.elec23Handler);
                 node.rfxtrx.on("elec4", this.elec1Handler);
                 node.rfxtrx.on("elec5", this.elec1Handler);
+                node.rfxtrx.on("rfxmeter", this.rfxmeterHandler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
