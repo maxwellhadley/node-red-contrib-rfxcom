@@ -1192,7 +1192,7 @@ module.exports = function (RED) {
                                     break;
 
                                 case "lighting2" :
-                                    if (node.rfxtrx.transmitters[protocolName].isSubtype("KAMBROOK")) {
+                                    if (!node.rfxtrx.transmitters[protocolName].isSubtype("KAMBROOK")) {
                                         levelRange = [0, 15];
                                     }
                                     break;
