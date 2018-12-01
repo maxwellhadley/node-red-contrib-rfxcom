@@ -12,12 +12,12 @@
     "url": "https://github.com/maxwellhadley/node-red-contrib-rfxcom.git"
   },
   "scripts": {
-    "find-rfxcom": "./node_modules/.bin/find-rfxcom",
-    "set-protocols": "./node_modules/.bin/set-protocols"
+    "find-rfxcom": "./node_modules/rfxcom/bin/find-rfxcom.js",
+    "set-protocols": "./node_modules/bin/set-protocols"
   },
   "bin": {
-    "find-rfxcom": "./node_modules/.bin/find-rfxcom",
-    "set-protocols": "./node_modules/.bin/set-protocols"
+    "find-rfxcom": "./node_modules/rfxcom/bin/find-rfxcom",
+    "set-protocols": "./node_modules/bin/set-protocols"
   },
   "license": "BSD-2-Clause",
   "keywords": [
