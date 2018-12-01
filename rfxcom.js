@@ -517,7 +517,7 @@ module.exports = function (RED) {
         const node = this;
         this.lighting4Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
-            let db = node.devices.filter(function (entry) {return entry.rawData === evt.data});
+            let db = node.devices.filter(function (entry) {return parseInt(entry.rawData) === parseInt(evt.data)});
             if (db.length === 0) {
                 msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
             } else {
