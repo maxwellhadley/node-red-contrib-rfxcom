@@ -366,6 +366,86 @@ matching a topic template. For example, the address above would be matched by 'B
     });
 </script>
 
+<!-- This is a transmitter node for wireless alarms -->
+<script type="text/x-red" data-template-name="rfx-alarm-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-doorbell-out -->
+<script type="text/x-red" data-help-name="rfx-alarm-out">
+<p>
+Sends alarm signals to wireless smoke detectors and X10 alarm systems using an RFXtrx433 transceiver
+</p>
+<p>
+<p>The input message topic is the alarm 'address'.
+Alternatively, the same device address can be used for all messages.
+Addresses take the form '<b><i>device type</i></b>/<b>device address</b>', where <b>device address</b> is the address
+of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device. Alarm devices of types
+<b>X10_SECURITY</b>, <b>KD101</b>, <b>SA30</b>, and <b>RM74RF</b> are supported.
+</p>
+<p>
+The message payload is ignored.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-alarm-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-alarm");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
 <!-- This is a transmitter node for wireless doorbells -->
 <script type="text/x-red" data-template-name="rfx-doorbell-out">
     <div class="form-row node-input-port">
@@ -414,8 +494,8 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"msg", required:true },
             topic: { value:"", validate:function (t) {
-                return this.topicSource == "msg" || t.length > 0
-            }
+                    return this.topicSource == "msg" || t.length > 0
+                }
             }
         },
         color:"BurlyWood",

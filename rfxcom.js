@@ -905,6 +905,7 @@ module.exports = function (RED) {
                 switch (evt.subtype) {
                     case rfxcom.security1.KD101:
                     case rfxcom.security1.SA30:
+                    case rfxcom.security1.RM174RF:
                         if (evt.deviceStatus === rfxcom.security.PANIC) {
                             msg.payload = "Smoke";
                         }
@@ -927,7 +928,8 @@ module.exports = function (RED) {
                         }
                         break;
 
-                    // These detectors send "heartbeat" messages at more or less regular intervals
+                    // These detectors are supposed to send "heartbeat" messages at more or less regular intervals
+                    // However, some Chinese clones (e.g. Kerui P831) do not
                     case rfxcom.security1.POWERCODE_DOOR:
                     case rfxcom.security1.POWERCODE_PIR:
                     case rfxcom.security1.X10_DOOR:
@@ -937,44 +939,52 @@ module.exports = function (RED) {
                         msg.status.state = evt.deviceStatus;
                         msg.status.delayed = Boolean(evt.deviceStatus === rfxcom.security.ALARM_DELAYED ||
                                                      evt.deviceStatus === rfxcom.security.NORMAL_DELAYED);
+                        let deviceIsNotInAlarm = Boolean(evt.deviceStatus === rfxcom.security.NORMAL ||
+                                                         evt.deviceStatus === rfxcom.security.NORMAL_DELAYED ||
+                                                         evt.deviceStatus === rfxcom.security.NO_MOTION);
                         // Clear any existing heartbeat timeout & retrieve the device status from the last message
                         let lastDeviceStatus = NaN;
                         if (node.heartbeats.hasOwnProperty(msg.topic)) {
                             clearInterval(node.heartbeats[msg.topic].interval);
                             lastDeviceStatus = node.heartbeats[msg.topic].lastStatus;
                         }
-                        // Set a heartbeat timeout and record the current device status
-                        node.heartbeats[msg.topic] = {
-                            lastStatus: evt.deviceStatus,
-                            interval: (function () {
-                                const heartbeatStoppedMsg = {
-                                    topic: msg.topic,
-                                    payload: "Silent",
-                                    lastMessageStatus: msg.status,
-                                    lastMessageTimestamp: Date.now(),
-                                    lastHeardFrom: new Date().toUTCString()
-                                };
-                                return setInterval(function () {
-                                    delete heartbeatStoppedMsg._msgid;
-                                    node.send(heartbeatStoppedMsg);
-                                }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
+                        // If this message has a NORMAL or NO_MOTION status, or there was an existing timer, set a new
+                        // heartbeat timeout and record the current device status. Since Kerui P831 detectors send only
+                        // MOTION messages, they will never set a heartbeat timer
+                        if (deviceIsNotInAlarm || isNaN(lastDeviceStatus) === false) {
+                            node.heartbeats[msg.topic] = {
+                                lastStatus: evt.deviceStatus,
+                                interval:   (function () {
+                                    const heartbeatStoppedMsg = {
+                                        topic:                msg.topic,
+                                        payload:              "Silent",
+                                        lastMessageStatus:    msg.status,
+                                        lastMessageTimestamp: Date.now(),
+                                        lastHeardFrom:        new Date().toUTCString()
+                                    };
+                                    return setInterval(function () {
+                                        delete heartbeatStoppedMsg._msgid;
+                                        node.send(heartbeatStoppedMsg);
+                                    }, 60*1000*node.HEARTBEATDELAY[evt.subtype]);
                                 }())
-                        };
-                        // This ensures a clean shutdown on redeploy
-                        node.heartbeats[msg.topic].interval.unref();
-                        // Payload priority is Tamper > Alarm/motion/Normal > Battery Low
+                            };
+                            // This ensures a clean shutdown on redeploy
+                            node.heartbeats[msg.topic].interval.unref();
+                        }
+                        // Payload priority is Tamper > Alarm/Motion/Normal > Battery Low
                         if (evt.batteryLevel === 0) {
                             msg.payload = "Battery Low";
                         }
-                        if (evt.deviceStatus !== lastDeviceStatus) {
+                        if (evt.deviceStatus === rfxcom.security.MOTION) {
+                            msg.payload = "Motion";
+                        } else if (evt.deviceStatus !== lastDeviceStatus) {
+                            // Only report ALARM/NORMAL status (i.e. window open/closed) if the status has changed
                             if (evt.deviceStatus === rfxcom.security.ALARM ||
                                 evt.deviceStatus === rfxcom.security.ALARM_DELAYED) {
                                 msg.payload = "Alarm";
                             } else if (evt.deviceStatus === rfxcom.security.NORMAL ||
                                        evt.deviceStatus === rfxcom.security.NORMAL_DELAYED) {
                                 msg.payload = "Normal";
-                            } else if (evt.deviceStatus === rfxcom.security.MOTION) {
-                                msg.payload = "Motion";
                             }
                         }
                         if (evt.tampered) {
@@ -1011,6 +1021,59 @@ module.exports = function (RED) {
     }
 
     RED.nodes.registerType("rfx-detector-in", RfxDetectorsNode);
+
+// An output node for sending PANIC messages to K101 type smoke detectors (sound the alarm!)
+    function RfxAlarmOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // any message, regardless of payload, sends a PANIC status to the address
+                    let path = [], protocolName, subtype = -1, deviceAddress;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-alarm-out ") + ": missing topic");
+                        return;
+                    }
+                    deviceAddress = path.slice(1, 2);
+                    try {
+                        protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["security1"]);
+                        if (subtype < 0 || ["X10_SECURITY", "KD101", "SA30", "RM174RF"].indexOf(protocolName) < 0) {
+                            node.warn((node.name || "rfx-alarm-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            node.rfxtrx.transmitters[protocolName].sendStatus(deviceAddress, rfxcom.security.PANIC);
+                        }
+                    } catch (exception) {
+                        node.warn((node.name || "rfx-alarm-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-alarm-out", RfxAlarmOutNode);
 
 // An output node for sending messages to light switches & dimmers (including most types of plug-in switch)
     function RfxLightsOutNode(n) {
