@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-rfxcom",
-  "version": "2.6.3",
+  "version": "2.7.0",
   "description": "A set of node-red nodes to use the Rfxcom RFXtrx433 remote control transceiver",
   "author": {
     "name": "Maxwell Hadley",
@@ -23,6 +23,6 @@
     }
   },
   "dependencies": {
-    "rfxcom": ">=2.0.0"
+    "rfxcom": ">=2.0.1"
   }
 }
