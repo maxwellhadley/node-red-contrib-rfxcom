@@ -285,6 +285,195 @@ recent message to each specific device address is repeated: the next message sen
     });
 </script>
 
+<!-- This is a receiver node for listening to messages from blinds remote controls -->
+<script type="text/x-red" data-template-name="rfx-blinds-in">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="all">listen for commands sent to any address</option>
+          <option value="single">only listen for addresses matching a pattern</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-blinds-in -->
+<script type="text/x-red" data-help-name="rfx-blinds-in">
+<p>
+Listens for commands from blinds, curtains, and awnings remote control transmitters using an RFXtrx433 transceiver
+</p>
+<p>The output message topic is the 'address' of the device being controlled; its payload is the command (a string).
+The message also has a status property indicating the received the signal strength (rssi).
+</p>
+<p>
+Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the family
+of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit address</b> is the unit or
+channel number of the addressed device. Channel 0 or '+' is used for group switching (or the equivalent) where supported.
+</p>
+<p>
+For example 'BLINDS_T1/0x0123/4' is a Hasta blinds remote, with ID 0x0123 and unit number 4.
+</p>
+<p>
+The node can either receive all commands sent to any address, or only commands sent to a restricted subset of adresses
+matching a topic template. For example, the address above would be matched by 'BLINDS_T1' or 'BLINDS_T1/0x0123'
+</p>
+<p>
+The most common commands are 'Open', 'Close', and 'Stop'. Some types have a few others, including 'Confirm' used when
+pairing a remote.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-blinds-in', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"all", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "all" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:0,
+        outputs:1,
+        icon: "rfxcom.png",
+        label: function () {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-blinds");
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function () {
+                var id = topicSource.find("option:selected").val();
+                if (id == "single") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for blinds & curtains -->
+<script type="text/x-red" data-template-name="rfx-blinds-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-blinds-out -->
+<script type="text/x-red" data-help-name="rfx-blinds-out">
+<p>
+Sends commands to blind and curtain motors using an RFXtrx433 transceiver
+</p>
+<p>The input message topic is the motor 'address'. The input message payload is the command. Alternatively, the same
+device address can be used for all messages.
+</p>
+<p>
+Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the
+family of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit
+address</b> is the unit or channel number of the addressed device. Channel 0 or '+' is used for group control
+(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10 &amp;
+BLINDS_T11 do not have unit addresses.
+</p>
+<p>
+For example, 'HARRISON/A/3' is a curtain motor with house code A and unit address 3, and 'BLINDS_T5/0x123' is a Media
+Mount projection screen with device address 0x123.
+</p>
+<p>
+Curtain motors, BLINDS_Tx motors, and the LightWave RF relay accept commands "open", "close", &amp; "stop".
+BLINDS_T5 motors (Media Mount projection screens) also accept "up" &amp; "down".
+RFY/Somfy motors use "up" &amp; "down" for roller blinds, and "open" &amp; "close" for venetian blinds.
+Venetian blind motors also accept "angle+" and "angle-" commands. Somfy awning motors
+accept "auto" &amp; "manual" to control the sun/wind sensor.
+</p>
+<p>
+A "list" command with a message topic of 'RFY' will show a list of all the Somfy/RFY remote ID's programmed into the
+RFXtrx433E transceiver. Send a "program" command after 'arming' the Somfy blind motor using the Somfy remote controller,
+to program an association between the ID from the message topic and the motor.
+</p>
+<p>
+Somfy venetian blind motors come in EU and US variants: the command mode used is set from the Serial Port configuration
+dialog, and applies to <i>all</i> motors used with the transceiver on that serial port.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-blinds-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.length > 0
+                }
+            },
+//            rfyVenetianMode: {value: "EU", required: true}
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-blinds");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
 <!-- This is a receiver node for listening to messages from doorbells -->
 <script type="text/x-red" data-template-name="rfx-doorbell-in">
     <div class="form-row node-input-port">
@@ -366,86 +555,6 @@ matching a topic template. For example, the address above would be matched by 'B
     });
 </script>
 
-<!-- This is a transmitter node for wireless alarms -->
-<script type="text/x-red" data-template-name="rfx-alarm-out">
-    <div class="form-row node-input-port">
-        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
-        <input type="text" id="node-input-port">
-    </div>
-    <div class="form-row node-input-topic">
-        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
-        <select id="node-input-topicSource" style="width:73% !important">
-          <option value="msg">get address from message topic</option>
-          <option value="node">send all commands to the same address</option>
-        </select>
-    </div>
-    <div class="form-row" id="node-input-row-topic">
-        <label for="node-input-topic"></label>
-        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-</script>
-
-<!-- Help text for rfx-doorbell-out -->
-<script type="text/x-red" data-help-name="rfx-alarm-out">
-<p>
-Sends alarm signals to wireless smoke detectors and X10 alarm systems using an RFXtrx433 transceiver
-</p>
-<p>
-<p>The input message topic is the alarm 'address'.
-Alternatively, the same device address can be used for all messages.
-Addresses take the form '<b><i>device type</i></b>/<b>device address</b>', where <b>device address</b> is the address
-of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device. Alarm devices of types
-<b>X10_SECURITY</b>, <b>KD101</b>, <b>SA30</b>, and <b>RM74RF</b> are supported.
-</p>
-<p>
-The message payload is ignored.
-</p>
-</script>
-
-<script type="text/javascript">
-    RED.nodes.registerType('rfx-alarm-out', {
-        category: 'home automation',
-        defaults: {
-            name: {name:""},
-            port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"msg", required:true },
-            topic: { value:"", validate:function (t) {
-                    return this.topicSource == "msg" || t.length > 0
-                }
-            }
-        },
-        color:"BurlyWood",
-        inputs:1,
-        outputs:0,
-        icon: "rfxcom.png",
-        align: "right",
-        label: function() {
-            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
-            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-alarm");
-        },
-        labelStyle: function() {
-            return this.name ? "node_label_italic" : "";
-        },
-        oneditprepare: function() {
-            var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
-                var id = topicSource.find("option:selected").val();
-                if (id == "node") {
-                    $("#node-input-row-topic").show();
-                } else {
-                    $("#node-input-row-topic").hide();
-                }
-            });
-            topicSource.val(this.topicSource);
-            topicSource.change();
-        }
-    });
-</script>
-
 <!-- This is a transmitter node for wireless doorbells -->
 <script type="text/x-red" data-template-name="rfx-doorbell-out">
     <div class="form-row node-input-port">
@@ -515,6 +624,184 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
             topicSource.change(function() {
                 var id = topicSource.find("option:selected").val();
                 if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a receiver node for listening to messages from energy meters -->
+<script type="text/x-red" data-template-name="rfx-meter">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="all">listen for data messages from any address</option>
+          <option value="single">only listen to addresses matching a pattern</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-meter -->
+<script type="text/x-red" data-help-name="rfx-meter">
+<p>
+Listens for measurement messages from energy and current meters using an RFXtrx433 transceiver
+</p>
+<p>The output message topic is the type and ID of the sensor. The output message payload is an object containing the
+meter measurement types, values & units of measurement, with status information.
+The message also has a status property indicating the received the signal strength (rssi), and the battery level if available.</p>
+</p>
+<p>
+For example an Owl CM180 meter may generate a message with a topic 'CM180/0xA412' and a payload
+<i>
+{"power":{"value":370, "unit":"W"}, "energy":{"value":30226.3151306, "unit":"Wh"}}</i>.
+</p>
+<p>
+The node can either receive measurement messages from any address, or only from a restricted subset of adresses
+matching a topic template. For example, 'REVOLT' would receive messages only from Revolt energy meters,
+and 'CM180/0xA412' would receive only messages from the sensor described above.
+</p>
+<p>
+Depending on the meter type, the available data may include current, voltage, power, energy (total energy used),
+power factor, and frequency. For meters with multiple current sensing channels, the current.value property
+is an array
+</p>
+<p>
+Data from Linky smartmeters, and the older types using TIC  can be received using the Cartelectronic transmitter.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-meter', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"all", required:true },
+            topic: { value:"", validate:function(t) {
+                    return this.topicSource == "all" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:0,
+        outputs:1,
+        icon: "rfxcom.png",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-meter");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "single") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a receiver node for listening to messages from temperature & humidity sensors -->
+<script type="text/x-red" data-template-name="rfx-sensor">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="all">listen for data messages from any address</option>
+          <option value="single">only listen to addresses matching a pattern</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-sensor -->
+<script type="text/x-red" data-help-name="rfx-sensor">
+<p>
+Listens for measurement messages from thermometers and various types of weather sensor using an RFXtrx433 transceiver
+</p>
+<p>The output message topic is the type and ID of the sensor. The output message payload is an object containing the
+sensor measurement types, values & units of measurement, with status information.
+The message also has a status property indicating the received the signal strength (rssi), and the battery level if available.</p>
+<p>
+For example an Oregon THGN132 temperature & humidity sensor may generate a message with a topic 'TH1/0xE801' and a payload
+<i>
+{"temperature":{"value":15.1, "unit":"degC"}, "humidity":{"value":60, "unit":"%", "status":"NORMAL"}}</i>.
+</p>
+<p>
+The node can either receive measurement messages from any address, or only from a restricted subset of adresses
+matching a topic template. For example, 'TH4' would receive messages only from Oregon THGR328 temperature/humidity sensors,
+and 'TH1/0xE801' would receive only messages from the sensor described above.
+</p>
+<p>
+Depending on the sensor type, the available data may include temperature, humidity, barometric pressure, UV index, wind speed
+& direction, and rainfall. For the Maverick ET-732 BBQ thermometer, <i>payload.temperature.value[0]</i> is the meat sensor &
+<i>payload.temperature.value[1]</i> is the BBQ sensor.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-sensor', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"all", required:true },
+            topic: { value:"", validate:function(t) {
+                    return this.topicSource == "all" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:0,
+        outputs:1,
+        icon: "rfxcom.png",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-sensor");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "single") {
                     $("#node-input-row-topic").show();
                 } else {
                     $("#node-input-row-topic").hide();
@@ -712,181 +999,6 @@ Appropriate Alexa Node-RED Home Skill command messages are also accepted by all 
     });
 </script>
 
-<!-- This is a receiver node for listening to messages from temperature & humidity sensors -->
-<script type="text/x-red" data-template-name="rfx-sensor">
-    <div class="form-row node-input-port">
-        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
-        <input type="text" id="node-input-port">
-    </div>
-    <div class="form-row node-input-topic">
-        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
-        <select id="node-input-topicSource" style="width:73% !important">
-          <option value="all">listen for data messages from any address</option>
-          <option value="single">only listen to addresses matching a pattern</option>
-        </select>
-    </div>
-    <div class="form-row" id="node-input-row-topic">
-        <label for="node-input-topic"></label>
-        <input type="text" id="node-input-topic" placeholder="protocol/device address">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-</script>
-
-<!-- Help text for rfx-sensor -->
-<script type="text/x-red" data-help-name="rfx-sensor">
-<p>
-Listens for measurement messages from thermometers and various types of weather sensor using an RFXtrx433 transceiver
-</p>
-<p>The output message topic is the type and ID of the sensor. The output message payload is an object containing the
-sensor measurement types, values & units of measurement, with status information.
-The message also has a status property indicating the received the signal strength (rssi), and the battery level if available.</p>
-<p>
-For example an Oregon THGN132 temperature & humidity sensor may generate a message with a topic 'TH1/0xE801' and a payload
-<i>
-{"temperature":{"value":15.1, "unit":"degC"}, "humidity":{"value":60, "unit":"%", "status":"NORMAL"}}</i>.
-</p>
-<p>
-The node can either receive measurement messages from any address, or only from a restricted subset of adresses
-matching a topic template. For example, 'TH4' would receive messages only from Oregon THGR328 temperature/humidity sensors,
-and 'TH1/0xE801' would receive only messages from the sensor described above.
-</p>
-<p>
-Depending on the sensor type, the available data may include temperature, humidity, barometric pressure, UV index, wind speed
-& direction, and rainfall. For the Maverick ET-732 BBQ thermometer, <i>payload.temperature.value[0]</i> is the meat sensor &
-<i>payload.temperature.value[1]</i> is the BBQ sensor.
-</p>
-</script>
-
-<script type="text/javascript">
-    RED.nodes.registerType('rfx-sensor', {
-        category: 'home automation',
-        defaults: {
-            name: {name:""},
-            port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"all", required:true },
-            topic: { value:"", validate:function(t) {
-                return this.topicSource == "all" || t.length > 0
-            }
-            }
-        },
-        color:"BurlyWood",
-        inputs:0,
-        outputs:1,
-        icon: "rfxcom.png",
-        label: function() {
-            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
-            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-sensor");
-        },
-        labelStyle: function() {
-            return this.name ? "node_label_italic" : "";
-        },
-        oneditprepare: function() {
-            var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
-                var id = topicSource.find("option:selected").val();
-                if (id == "single") {
-                    $("#node-input-row-topic").show();
-                } else {
-                    $("#node-input-row-topic").hide();
-                }
-            });
-            topicSource.val(this.topicSource);
-            topicSource.change();
-        }
-    });
-</script>
-
-<!-- This is a receiver node for listening to messages from energy meters -->
-<script type="text/x-red" data-template-name="rfx-meter">
-    <div class="form-row node-input-port">
-        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
-        <input type="text" id="node-input-port">
-    </div>
-    <div class="form-row node-input-topic">
-        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
-        <select id="node-input-topicSource" style="width:73% !important">
-          <option value="all">listen for data messages from any address</option>
-          <option value="single">only listen to addresses matching a pattern</option>
-        </select>
-    </div>
-    <div class="form-row" id="node-input-row-topic">
-        <label for="node-input-topic"></label>
-        <input type="text" id="node-input-topic" placeholder="protocol/device address">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-</script>
-
-<!-- Help text for rfx-meter -->
-<script type="text/x-red" data-help-name="rfx-meter">
-<p>
-Listens for measurement messages from energy and current meters using an RFXtrx433 transceiver
-</p>
-<p>The output message topic is the type and ID of the sensor. The output message payload is an object containing the
-meter measurement types, values & units of measurement, with status information.
-The message also has a status property indicating the received the signal strength (rssi), and the battery level if available.</p>
-</p>
-<p>
-For example an Owl CM180 meter may generate a message with a topic 'CM180/0xA412' and a payload
-<i>
-{"power":{"value":370, "unit":"W"}, "energy":{"value":30226.3151306, "unit":"Wh"}}</i>.
-</p>
-<p>
-The node can either receive measurement messages from any address, or only from a restricted subset of adresses
-matching a topic template. For example, 'REVOLT' would receive messages only from Revolt energy meters,
-and 'CM180/0xA412' would receive only messages from the sensor described above.
-</p>
-<p>
-Depending on the meter type, the available data may include current, voltage, power, energy (total energy used),
-power factor, and frequency. For meters with multiple current sensing channels, the current.value property
-is an array
-</p>
-</script>
-
-<script type="text/javascript">
-    RED.nodes.registerType('rfx-meter', {
-        category: 'home automation',
-        defaults: {
-            name: {name:""},
-            port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"all", required:true },
-            topic: { value:"", validate:function(t) {
-                    return this.topicSource == "all" || t.length > 0
-                }
-            }
-        },
-        color:"BurlyWood",
-        inputs:0,
-        outputs:1,
-        icon: "rfxcom.png",
-        label: function() {
-            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
-            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-meter");
-        },
-        labelStyle: function() {
-            return this.name ? "node_label_italic" : "";
-        },
-        oneditprepare: function() {
-            var topicSource = $("#node-input-topicSource");
-            topicSource.change(function() {
-                var id = topicSource.find("option:selected").val();
-                if (id == "single") {
-                    $("#node-input-row-topic").show();
-                } else {
-                    $("#node-input-row-topic").hide();
-                }
-            });
-            topicSource.val(this.topicSource);
-            topicSource.change();
-        }
-    });
-</script>
-
 <!-- This is a receiver node for listening to messages from intruder and smoke detectors -->
 <script type="text/x-red" data-template-name="rfx-detector-in">
     <div class="form-row node-input-port">
@@ -966,6 +1078,86 @@ or loss of property, or protection from risk of injury or death, may depend on i
             topicSource.change(function() {
                 var id = topicSource.find("option:selected").val();
                 if (id == "single") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for wireless alarms -->
+<script type="text/x-red" data-template-name="rfx-alarm-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-alarm-out -->
+<script type="text/x-red" data-help-name="rfx-alarm-out">
+<p>
+Sends alarm signals to wireless smoke detectors and X10 alarm systems using an RFXtrx433 transceiver
+</p>
+<p>
+<p>The input message topic is the alarm 'address'.
+Alternatively, the same device address can be used for all messages.
+Addresses take the form '<b><i>device type</i></b>/<b>device address</b>', where <b>device address</b> is the address
+of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device. Alarm devices of types
+<b>X10_SECURITY</b>, <b>KD101</b>, <b>SA30</b>, and <b>RM74RF</b> are supported.
+</p>
+<p>
+The message payload is ignored.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-alarm-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-alarm");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
                     $("#node-input-row-topic").show();
                 } else {
                     $("#node-input-row-topic").hide();
@@ -1322,7 +1514,7 @@ recent message to each specific device address is repeated: the next message sen
         },
         oneditprepare: function() {
             var topicSource = $("#node-input-topicSource"),
-                    retransmit = $("#node-input-retransmit");
+                retransmit = $("#node-input-retransmit");
             retransmit.change(function () {
                 var mode = retransmit.find("option:selected").val();
                 if (mode === "none") {
@@ -1340,195 +1532,6 @@ recent message to each specific device address is repeated: the next message sen
             });
             retransmit.val(this.retransmit);
             retransmit.change();
-            topicSource.change(function() {
-                var id = topicSource.find("option:selected").val();
-                if (id == "node") {
-                    $("#node-input-row-topic").show();
-                } else {
-                    $("#node-input-row-topic").hide();
-                }
-            });
-            topicSource.val(this.topicSource);
-            topicSource.change();
-        }
-    });
-</script>
-
-<!-- This is a receiver node for listening to messages from blinds remote controls -->
-<script type="text/x-red" data-template-name="rfx-blinds-in">
-    <div class="form-row node-input-port">
-        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
-        <input type="text" id="node-input-port">
-    </div>
-    <div class="form-row node-input-topic">
-        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
-        <select id="node-input-topicSource" style="width:73% !important">
-          <option value="all">listen for commands sent to any address</option>
-          <option value="single">only listen for addresses matching a pattern</option>
-        </select>
-    </div>
-    <div class="form-row" id="node-input-row-topic">
-        <label for="node-input-topic"></label>
-        <input type="text" id="node-input-topic" placeholder="protocol/device address">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-</script>
-
-<!-- Help text for rfx-blinds-in -->
-<script type="text/x-red" data-help-name="rfx-blinds-in">
-<p>
-Listens for commands from blinds, curtains, and awnings remote control transmitters using an RFXtrx433 transceiver
-</p>
-<p>The output message topic is the 'address' of the device being controlled; its payload is the command (a string).
-The message also has a status property indicating the received the signal strength (rssi).
-</p>
-<p>
-Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the family
-of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit address</b> is the unit or
-channel number of the addressed device. Channel 0 or '+' is used for group switching (or the equivalent) where supported.
-</p>
-<p>
-For example 'BLINDS_T1/0x0123/4' is a Hasta blinds remote, with ID 0x0123 and unit number 4.
-</p>
-<p>
-The node can either receive all commands sent to any address, or only commands sent to a restricted subset of adresses
-matching a topic template. For example, the address above would be matched by 'BLINDS_T1' or 'BLINDS_T1/0x0123'
-</p>
-<p>
-The most common commands are 'Open', 'Close', and 'Stop'. Some types have a few others, including 'Confirm' used when
-pairing a remote.
-</p>
-</script>
-
-<script type="text/javascript">
-    RED.nodes.registerType('rfx-blinds-in', {
-        category: 'home automation',
-        defaults: {
-            name: {name:""},
-            port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"all", required:true },
-            topic: { value:"", validate:function (t) {
-                return this.topicSource == "all" || t.length > 0
-            }
-            }
-        },
-        color:"BurlyWood",
-        inputs:0,
-        outputs:1,
-        icon: "rfxcom.png",
-        label: function () {
-            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
-            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-blinds");
-        },
-        labelStyle: function () {
-            return this.name ? "node_label_italic" : "";
-        },
-        oneditprepare: function () {
-            var topicSource = $("#node-input-topicSource");
-            topicSource.change(function () {
-                var id = topicSource.find("option:selected").val();
-                if (id == "single") {
-                    $("#node-input-row-topic").show();
-                } else {
-                    $("#node-input-row-topic").hide();
-                }
-            });
-            topicSource.val(this.topicSource);
-            topicSource.change();
-        }
-    });
-</script>
-
-<!-- This is a transmitter node for blinds & curtains -->
-<script type="text/x-red" data-template-name="rfx-blinds-out">
-    <div class="form-row node-input-port">
-        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
-        <input type="text" id="node-input-port">
-    </div>
-    <div class="form-row node-input-topic">
-        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
-        <select id="node-input-topicSource" style="width:73% !important">
-          <option value="msg">get address from message topic</option>
-          <option value="node">send all commands to the same address</option>
-        </select>
-    </div>
-    <div class="form-row" id="node-input-row-topic">
-        <label for="node-input-topic"></label>
-        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-</script>
-
-<!-- Help text for rfx-blinds-out -->
-<script type="text/x-red" data-help-name="rfx-blinds-out">
-<p>
-Sends commands to blind and curtain motors using an RFXtrx433 transceiver
-</p>
-<p>The input message topic is the motor 'address'. The input message payload is the command. Alternatively, the same
-device address can be used for all messages.
-</p>
-<p>
-Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the
-family of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit
-address</b> is the unit or channel number of the addressed device. Channel 0 or '+' is used for group control
-(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10 &amp;
-BLINDS_T11 do not have unit addresses.
-</p>
-<p>
-For example, 'HARRISON/A/3' is a curtain motor with house code A and unit address 3, and 'BLINDS_T5/0x123' is a Media
-Mount projection screen with device address 0x123.
-</p>
-<p>
-Curtain motors, BLINDS_Tx motors, and the LightWave RF relay accept commands "open", "close", &amp; "stop".
-BLINDS_T5 motors (Media Mount projection screens) also accept "up" &amp; "down".
-RFY/Somfy motors use "up" &amp; "down" for roller blinds, and "open" &amp; "close" for venetian blinds.
-Venetian blind motors also accept "angle+" and "angle-" commands. Somfy awning motors
-accept "auto" &amp; "manual" to control the sun/wind sensor.
-</p>
-<p>
-A "list" command with a message topic of 'RFY' will show a list of all the Somfy/RFY remote ID's programmed into the
-RFXtrx433E transceiver. Send a "program" command after 'arming' the Somfy blind motor using the Somfy remote controller,
-to program an association between the ID from the message topic and the motor.
-</p>
-<p>
-Somfy venetian blind motors come in EU and US variants: the command mode used is set from the Serial Port configuration
-dialog, and applies to <i>all</i> motors used with the transceiver on that serial port.
-</p>
-</script>
-
-<script type="text/javascript">
-    RED.nodes.registerType('rfx-blinds-out', {
-        category: 'home automation',
-        defaults: {
-            name: {name:""},
-            port: {type:"rfxtrx-port", required:true},
-            topicSource: { value:"msg", required:true },
-            topic: { value:"", validate:function (t) {
-                return this.topicSource == "msg" || t.length > 0
-            }
-            },
-//            rfyVenetianMode: {value: "EU", required: true}
-        },
-        color:"BurlyWood",
-        inputs:1,
-        outputs:0,
-        icon: "rfxcom.png",
-        align: "right",
-        label: function() {
-            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
-            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-blinds");
-        },
-        labelStyle: function() {
-            return this.name ? "node_label_italic" : "";
-        },
-        oneditprepare: function() {
-            var topicSource = $("#node-input-topicSource");
             topicSource.change(function() {
                 var id = topicSource.find("option:selected").val();
                 if (id == "node") {

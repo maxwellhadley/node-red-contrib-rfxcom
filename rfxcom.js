@@ -949,8 +949,9 @@ module.exports = function (RED) {
                             lastDeviceStatus = node.heartbeats[msg.topic].lastStatus;
                         }
                         // If this message has a NORMAL or NO_MOTION status, or there was an existing timer, set a new
-                        // heartbeat timeout and record the current device status. Since Kerui P831 detectors send only
-                        // MOTION messages, they will never set a heartbeat timer
+                        // heartbeat timeout and record the current device status. Since Kerui P831 detectors and
+                        // CreaJian-X21 switches (which use this packet type) send only MOTION (or ALARM) messages,
+                        // they will never set a heartbeat timer
                         if (deviceIsNotInAlarm || isNaN(lastDeviceStatus) === false) {
                             node.heartbeats[msg.topic] = {
                                 lastStatus: evt.deviceStatus,
