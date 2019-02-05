@@ -8,14 +8,10 @@ home automation controller. Also compatible with the older RFXtrx433 transceiver
 Install
 -------
 
-Use npm to install this package locally in the Node-RED data directory (by default, `$HOME/.node-red`):
+Either install from the palette, or use npm to install this package locally in the Node-RED data directory (by default, `$HOME/.node-red`):
 
 	cd $HOME/.node-red
 	npm install node-red-contrib-rfxcom
-
-Alternatively, it can be installed globally:
-
-    npm install -g node-red-contrib-rfxcom
 
 The nodes will be added to the palette the next time node-RED is started, under the 'home automation' category.
 
@@ -27,16 +23,30 @@ switches.
 
 **rfx-lights-out** Sends messages to 'lighting' type devices including switches, dimmers, and some types of relay.
 
+**rfx-blinds-in** Receives messages from curtains, blinds, and awnings remote controls (also supports the LightwaveRF
+in-line relay)
+
+**rfx-blinds-out** Sends commands to curtains, blinds, and awnings motors, including Somfy/RFY units (also supports the
+LightwaveRF in-line relay)
+
 **rfx-doorbell-in** Receives messages from wireless bell pushes
 
 **rfx-doorbell-out** Sends messages to wireless door chimes
 
-**rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors. Also handles soil
-moisture sensors and the maverick ET-732 BBQ thermometer.
+**rfx-meter** Receives messages from wireless energy monitors such as OWL, and Carteletronic TIC/Linky transmitters
 
-**rfx-meter** Receives messages from wireless energy monitors such as OWL
+**rfx-sensor** Receives messages from temperature, humidity, pressure and other weather sensors. Also handles soil
+moisture sensors, Digimax thermostats, and the Maverick ET-732 BBQ thermometer.
+
+**rfx-trv** Sends set temperature commands to Smartwares Thermostatic Radiator Valves
+
+**rfx-heat** Sends commands to various types of wood & gas stoves, thermostats, and other heating devices
 
 **rfx-detector** Receives messages from wireless intruder and smoke detectors.
+**This node and the associated software must not be used in situations where the avoidance of damage to 
+or loss of property, or protection from risk of injury or death, may depend on its correct operation.**
+
+**rfx-alarm** Sends a 'panic' message to cause smoke detector & intruder alarm sounders to sound.
 **This node and the associated software must not be used in situations where the avoidance of damage to 
 or loss of property, or protection from risk of injury or death, may depend on its correct operation.**
 
@@ -44,12 +54,6 @@ or loss of property, or protection from risk of injury or death, may depend on i
 systems use these chips
 
 **rfx-PT2262-out** Sends messages to devices using the PT2262 family of chips.
-
-**rfx-blinds-in** Receives messages from curtains, blinds, and awnings remote controls (also supports the LightwaveRF
-in-line relay)
-
-**rfx-blinds-out** Sends commands to curtains, blinds, and awnings motors, including Somfy/RFY units (also supports the
-LightwaveRF in-line relay)
 
 Basic help text is provided for each node. Additional information is available in the 'RFXmngr.exe' program supplied
 with the RFXtrx433E, and more details may be found in the SDK documentation, available on request from RFXCOM.
