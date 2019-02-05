@@ -804,6 +804,68 @@ module.exports = function (RED) {
 
         const node = this;
 
+        this.cartelectronicHandler = function (evt) {
+            let msg = {topic: (rfxcom.cartelectronic[evt.subtype] || "CARTELECTRONIC_UNKNOWN") + "/" + evt.id};
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                msg.status = {rssi: evt.rssi, battery: evt.batteryLevel};
+                msg.payload = {cartelectronic: {}};
+                switch (evt.subtype) {
+                    case 1 :
+                        msg.payload.cartelectronic.type = "TIC";
+                        msg.payload.cartelectronic.identifiantCompteur = evt.identifiantCompteur;
+                        msg.payload.cartelectronic.typeContrat = evt.typeContrat;
+                        msg.payload.cartelectronic.périodeTarifaireEnCours = evt.périodeTarifaireEnCours;
+                        msg.payload.cartelectronic.compteur = evt.compteur;
+                        msg.payload.cartelectronic.puissanceApparenteValide = evt.puissanceApparenteValide;
+                        msg.payload.cartelectronic.puissanceApparente = evt.puissanceApparente;
+                        msg.payload.cartelectronic.teleInfoPrésente = evt.teleInfoPrésente;
+                        if (evt.hasOwnProperty("avertissemntJourEJP")) {
+                            msg.payload.cartelectronic.avertissemntJourEJP = evt.avertissemntJourEJP;
+                        }
+                        if (evt.hasOwnProperty("avertissementCouleurDemain")) {
+                            msg.payload.cartelectronic.avertissementCouleurDemain = evt.avertissementCouleurDemain;
+                        }
+                        msg.payload.counter = [{value: evt.compteur[0].valeur, unit: "Wh"}];
+                        if (evt.compteur[1].période !== "non utilisé") {
+                            msg.payload.counter.push({value: evt.compteur[1].valeur, unit: "Wh"});
+                        }
+                        break;
+
+                    case 2 :
+                        msg.payload.cartelectronic.type = "COMPTEUR";
+                        msg.payload.cartelectronic.compteur = evt.compteur;
+                        msg.payload.counter = [{value: evt.compteur[0].valeur, unit: "Count"},
+                                               {value: evt.compteur[1].valeur, unit: "Count"}];
+                        break;
+
+                    case 3 :
+                        msg.payload.cartelectronic.type = "LINKY";
+                        msg.payload.cartelectronic.identifiantCompteur = evt.identifiantCompteur;
+                        msg.payload.cartelectronic.compteur = evt.compteur;
+                        msg.payload.cartelectronic.tensionMoyenne = evt.tensionMoyenne;
+                        msg.payload.cartelectronic.puissanceApparenteValide = evt.puissanceApparenteValide;
+                        msg.payload.cartelectronic.puissanceApparente = evt.puissanceApparente;
+                        msg.payload.cartelectronic.teleInfoPrésente = evt.teleInfoPrésente;
+                        msg.payload.cartelectronic.indexTariffaireEnCours = evt.indexTariffaireEnCours;
+                        msg.payload.cartelectronic.avertissementCouleurAujourdHui = evt.avertissementCouleurAujourdHui;
+                        msg.payload.cartelectronic.avertissementCouleurDemain = evt.avertissementCouleurDemain;
+
+                        msg.payload.voltage = {value: evt.tensionMoyenne, unit: "V"};
+                        msg.payload.counter = [{value: evt.compteur[0].valeur, unit: "Wh"}];
+                        if (evt.compteur[1].contenu !== "non utilisé") {
+                            msg.payload.counter.push({value: evt.compteur[1].valeur, unit: "Wh"});
+                        }
+                        break;
+
+                    default:
+                        msg.payload.cartelectronic.type = "INCONNU";
+                        break;
+                }
+                node.send(msg);
+
+            }
+        };
+
         const sendMeterMessage = function (evt, packetType, msg) {
             // Discard all rfxMeter messages that are not simple counts
             if (packetType === 0x71 && evt.subtype !== 0) {
@@ -866,6 +928,7 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("elec4", node.elec1Handler);
                         node.rfxtrx.removeListener("elec5", node.elec1Handler);
                         node.rfxtrx.removeListener("rfxmeter", node.rfxmeterHandler);
+                        node.rfxtrx.removeListener("cartelectronic", node.cartelectronicHandler);
                     }
                     releasePort(node);
                 });
@@ -874,6 +937,7 @@ module.exports = function (RED) {
                 node.rfxtrx.on("elec4", this.elec1Handler);
                 node.rfxtrx.on("elec5", this.elec1Handler);
                 node.rfxtrx.on("rfxmeter", this.rfxmeterHandler);
+                node.rfxtrx.on("cartelectronic", this.cartelectronicHandler)
             }
         } else {
             node.error("missing config: rfxtrx-port");
