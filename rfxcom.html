@@ -1,5 +1,5 @@
 <!--
-    Copyright (c) 2014, 2015, Maxwell Hadley
+    Copyright (c) 2014 .. 2019, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -1040,6 +1040,9 @@ the node sends regular output messages with a "Silent" payload. The node will al
 Low" payload if the detector so reports in a status message.</li>
 </ul>
 <p>
+The node can also receive the basic commands from X10 security remote controls: Arm (home/away, with or without delay) & Disarm, and
+Panic & End Panic. (The light control commands are received by the <b>rfx-lights-in</b> node)
+<p>
 The node can either receive messages from any address, or only from a restricted subset of adresses
 matching a topic template. For example, 'KD101' would receive messages only from Flamingo, Chacon, NEXA and similar
 smoke detectors.
@@ -1115,7 +1118,7 @@ or loss of property, or protection from risk of injury or death, may depend on i
 <!-- Help text for rfx-alarm-out -->
 <script type="text/x-red" data-help-name="rfx-alarm-out">
 <p>
-Sends alarm signals to wireless smoke detectors and X10 alarm systems using an RFXtrx433 transceiver
+Sends control commands to X10 alarm systems and alarm signals to wireless smoke detectors using an RFXtrx433 transceiver
 </p>
 <p>
 <p>The input message topic is the alarm 'address'.
@@ -1125,7 +1128,9 @@ of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device
 <b>X10_SECURITY</b>, <b>KD101</b>, <b>SA30</b>, and <b>RM74RF</b> are supported.
 </p>
 <p>
-The message payload is ignored.
+The supported X10 alarm commands are <b>Panic</b> and <b>End Panic</b>, <b>Arm</b> (with options <b>Home</b> or <b>Away</b>,
+and <b>Delayed</b>), and <b>Disarm</b>. To sound an alarm on an X10_SECURITY alarm system, use the payload <b>Panic</b>.
+Other types of device ignore the message payload and will always sound an alarm when a message is received.
 </p>
 </script>
 

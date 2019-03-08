@@ -1193,10 +1193,28 @@ module.exports = function (RED) {
                     try {
                         protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["security1"]);
-                        if (subtype < 0 || ["X10_SECURITY", "KD101", "SA30", "RM174RF"].indexOf(protocolName) < 0) {
+                        if (subtype < 0 || ["X10_SECURITY", "KD101", "MEIANTECH", "SA30", "RM174RF"].indexOf(protocolName) < 0) {
                             node.warn((node.name || "rfx-alarm-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
-                            node.rfxtrx.transmitters[protocolName].sendStatus(deviceAddress, rfxcom.security.PANIC);
+                            let command = rfxcom.security.PANIC;
+                            if (protocolName === "X10_SECURITY") {
+                                if (/disarm/i.test(msg.payload)) {
+                                    command = rfxcom.security.DISARM;
+                                } else if (/don't|cancel|end|stop/i.test(msg.payload)) {
+                                    command = rfxcom.security.END_PANIC;
+                                } else if (/arm.*home.*delay/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_HOME_DELAYED;
+                                } else if (/arm.*home/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_HOME;
+                                } else if (/arm.*delay/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_AWAY_DELAYED;
+                                } else if (/arm/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_AWAY;
+                                } else if (/panic/i.test(msg.payload) === false) {
+                                    return;
+                                }
+                            }
+                            node.rfxtrx.transmitters[protocolName].sendStatus(deviceAddress, command);
                         }
                     } catch (exception) {
                         node.warn((node.name || "rfx-alarm-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
