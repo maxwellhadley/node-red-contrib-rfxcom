@@ -23,6 +23,6 @@
     }
   },
   "dependencies": {
-    "rfxcom": ">=2.0.1"
+    "rfxcom": ">=2.0.2"
   }
 }

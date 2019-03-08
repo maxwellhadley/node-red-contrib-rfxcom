@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2014 .. 2017, Maxwell Hadley
+    Copyright (c) 2014 .. 2019, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -479,6 +479,38 @@ module.exports = function (RED) {
                 node.send(msg);
             }
         };
+        this.security1Handler = function (evt) {
+            let msg = {status: {rssi: evt.rssi, battery: evt.batteryLevel}};
+            if (evt.subtype === 2) {
+                msg.topic = (rfxcom.security1[2]) + "/" + evt.id + "/";
+                switch (evt.deviceStatus) {
+                    case 0x10:
+                        msg.payload = "Off";
+                        msg.topic = msg.topic + "1";
+                        break;
+
+                    case 0x11:
+                        msg.payload = "On";
+                        msg.topic = msg.topic + "1";
+                        break;
+
+                    case 0x12:
+                        msg.payload = "Off";
+                        msg.topic = msg.topic + "2";
+                        break;
+
+                    case 0x13:
+                        msg.payload = "On";
+                        msg.topic = msg.topic + "2";
+                        break;
+
+                    default:
+                        return;
+
+                }
+                node.send(msg);
+            }
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
@@ -489,6 +521,7 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("lighting2", node.lighting2Handler);
                         node.rfxtrx.removeListener("lighting5", node.lighting5Handler);
                         node.rfxtrx.removeListener("lighting6", node.lighting6Handler);
+                        node.rfxtrx.removeListener("security1", node.security1Handler);
                     }
                     releasePort(node);
                 });
@@ -496,6 +529,7 @@ module.exports = function (RED) {
                 node.rfxtrx.on("lighting2", this.lighting2Handler);
                 node.rfxtrx.on("lighting5", this.lighting5Handler);
                 node.rfxtrx.on("lighting6", this.lighting6Handler);
+                node.rfxtrx.on("security1", this.security1Handler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -992,6 +1026,42 @@ module.exports = function (RED) {
                         }
                         break;
 
+                    case rfxcom.security1.X10_SECURITY:
+                        msg.status.battery = evt.batteryLevel;
+                        switch (evt.deviceStatus) {
+                            case 0x06:
+                                msg.payload = "Panic";
+                                break;
+
+                            case 0x07:
+                                msg.payload = "Cancel Panic";
+                                break;
+
+                            case 0x09:
+                                msg.payload = "Arm Away";
+                                break;
+
+                            case 0x0a:
+                                msg.payload = "Arm Away Delayed";
+                                break;
+
+                            case 0x0b:
+                                msg.payload = "Arm Home";
+                                break;
+
+                            case 0x0c:
+                                msg.payload = "Arm Home Delayed";
+                                break;
+
+                            case 0x0d:
+                                msg.payload = "Disarm";
+                                break;
+
+                            default:
+                                break;
+                        }
+                        break;
+
                     // These detectors are supposed to send "heartbeat" messages at more or less regular intervals
                     // However, some Chinese clones (e.g. Kerui P831) do not
                     case rfxcom.security1.POWERCODE_DOOR:
@@ -1123,10 +1193,28 @@ module.exports = function (RED) {
                     try {
                         protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["security1"]);
-                        if (subtype < 0 || ["X10_SECURITY", "KD101", "SA30", "RM174RF"].indexOf(protocolName) < 0) {
+                        if (subtype < 0 || ["X10_SECURITY", "KD101", "MEIANTECH", "SA30", "RM174RF"].indexOf(protocolName) < 0) {
                             node.warn((node.name || "rfx-alarm-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
-                            node.rfxtrx.transmitters[protocolName].sendStatus(deviceAddress, rfxcom.security.PANIC);
+                            let command = rfxcom.security.PANIC;
+                            if (protocolName === "X10_SECURITY") {
+                                if (/disarm/i.test(msg.payload)) {
+                                    command = rfxcom.security.DISARM;
+                                } else if (/don't|cancel|end|stop/i.test(msg.payload)) {
+                                    command = rfxcom.security.END_PANIC;
+                                } else if (/arm.*home.*delay/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_HOME_DELAYED;
+                                } else if (/arm.*home/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_HOME;
+                                } else if (/arm.*delay/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_AWAY_DELAYED;
+                                } else if (/arm/i.test(msg.payload)) {
+                                    command = rfxcom.security.ARM_AWAY;
+                                } else if (/panic/i.test(msg.payload) === false) {
+                                    return;
+                                }
+                            }
+                            node.rfxtrx.transmitters[protocolName].sendStatus(deviceAddress, command);
                         }
                     } catch (exception) {
                         node.warn((node.name || "rfx-alarm-out ") + ": serial port " + node.rfxtrxPort.port + " does not exist");
@@ -1253,9 +1341,17 @@ module.exports = function (RED) {
                     node.warn("Don't understand dimming command '" + payload + "'");
                 }
             } else if (/on/i.test(payload) || payload === 1 || payload === true) {
-                node.rfxtrx.transmitters[protocolName].switchOn(address);
+                if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
+                    node.rfxtrx.transmitters[protocolName].switchOnLight(address[0], address[1]);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].switchOn(address);
+                }
             } else if (/off/i.test(payload) || payload === 0 || payload === false) {
-                node.rfxtrx.transmitters[protocolName].switchOff(address);
+                if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
+                    node.rfxtrx.transmitters[protocolName].switchOffLight(address[0], address[1]);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].switchOff(address);
+                }
             } else if (/mood/i.test(payload)) {
                 const match = /mood *([0-9]+)/i.exec(payload);
                 if (match !== null && match.length >= 2) {
@@ -1308,7 +1404,7 @@ module.exports = function (RED) {
                     unitAddress = parseUnitAddress(path.slice(-1)[0]);
                     try {
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "lighting2", "lighting3",
-                                                                               "lighting5", "lighting6", "homeConfort"]);
+                                                                           "lighting5", "lighting6", "homeConfort", "security1"]);
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-lights-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {

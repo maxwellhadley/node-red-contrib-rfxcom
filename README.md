@@ -42,11 +42,12 @@ moisture sensors, Digimax thermostats, and the Maverick ET-732 BBQ thermometer.
 
 **rfx-heat** Sends commands to various types of wood & gas stoves, thermostats, and other heating devices
 
-**rfx-detector** Receives messages from wireless intruder and smoke detectors.
+**rfx-detector** Receives messages from wireless intruder and smoke detectors, and X10 alarm system remotes.
 **This node and the associated software must not be used in situations where the avoidance of damage to 
 or loss of property, or protection from risk of injury or death, may depend on its correct operation.**
 
-**rfx-alarm** Sends a 'panic' message to cause smoke detector & intruder alarm sounders to sound.
+**rfx-alarm** Sends X10 alarm system commands, including the 'panic' command which will also cause smoke detector & intruder
+alarm sounders to sound.
 **This node and the associated software must not be used in situations where the avoidance of damage to 
 or loss of property, or protection from risk of injury or death, may depend on its correct operation.**
 
