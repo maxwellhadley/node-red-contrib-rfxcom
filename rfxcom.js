@@ -508,7 +508,9 @@ module.exports = function (RED) {
                         return;
 
                 }
-                node.send(msg);
+                if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                    node.send(msg);
+                }
             }
         };
         if (node.rfxtrxPort) {
