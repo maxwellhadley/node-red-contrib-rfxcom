@@ -988,6 +988,7 @@ module.exports = function (RED) {
         this.port = n.port;
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
+        this.outputHeartbeats = n.outputHeartbeats || false;
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
@@ -1107,8 +1108,11 @@ module.exports = function (RED) {
                             };
                             // This ensures a clean shutdown on redeploy
                             node.heartbeats[msg.topic].interval.unref();
+                            if (node.outputHeartbeats) {
+                                msg.payload = "Heartbeat";
+                            }
                         }
-                        // Payload priority is Tamper > Alarm/Motion/Normal > Battery Low
+                        // Payload priority is Tamper > Alarm/Motion/Normal > Battery Low > Heartbeat (if enabled)
                         if (evt.batteryLevel === 0) {
                             msg.payload = "Battery Low";
                         }
