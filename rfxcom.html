@@ -1017,6 +1017,11 @@ Appropriate Alexa Node-RED Home Skill command messages are also accepted by all 
         <input type="text" id="node-input-topic" placeholder="protocol/device address">
     </div>
     <div class="form-row">
+        <label for="node-input-outputHeartbeats">&nbsp;</label>
+        <input type="checkbox" id="node-input-outputHeartbeats" style="display:inline-block; width:15px; vertical-align:baseline;">
+        <span>Output detector heartbeat messages</span>
+    </div>
+    <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
@@ -1035,9 +1040,15 @@ Listens for messages from wireless intruder and smoke detectors using an RFXtrx4
 <li>Door/window opening detectors will send an "Alarm" payload when triggered, and a "Normal" payload
 when the door or window is closed again.</li>
 <li>Suitably equipped detectors will send a "Tamper" payload when the anti-tamper circuit is triggered.</li>
-<li>X10 and some types of Visonic PowerCode detectors report their status at regular intervals. If these reports stop,
-the node sends regular output messages with a "Silent" payload. The node will also send an output message with a "Battery
-Low" payload if the detector so reports in a status message.</li>
+<li>X10 and some types of Visonic PowerCode detectors report their status at regular intervals. Optionally, these
+reports may be sent to the node output - if everything is normal the output message payload will be "Heartbeat". However,
+the node will always send an output message with a payload of "Battery Low" if the detector reports low battery in a
+status message.
+<br>
+Whether or not heartbeat output is enabled, if the status reports stop, the node will send an output message with
+a "Silent" payload. These repeat at regular intervals until another transmission (of any type) is received
+from the same device.
+</li>
 </ul>
 <p>
 The node can also receive the basic commands from X10 security remote controls: Arm (home/away, with or without delay) & Disarm, and
@@ -1061,9 +1072,10 @@ or loss of property, or protection from risk of injury or death, may depend on i
             port: {type:"rfxtrx-port", required:true},
             topicSource: { value:"all", required:true },
             topic: { value:"", validate:function(t) {
-                return this.topicSource == "all" || t.length > 0
-            }
-            }
+                    return this.topicSource == "all" || t.length > 0
+                }
+            },
+            outputHeartbeats: {value: false, required:true}
         },
         color:"BurlyWood",
         inputs:0,
