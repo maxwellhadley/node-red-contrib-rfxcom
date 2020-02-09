@@ -261,7 +261,7 @@ module.exports = function (RED) {
         }
     };
 
-// Purge retransmission timers associated a this node and delete them to avoid leaking memory
+// Purge retransmission timers associated with this node and delete them to avoid leaking memory
     const purgeTimers = function (node) {
            let tx = {};
            for (tx in node.retransmissions) {
@@ -513,6 +513,48 @@ module.exports = function (RED) {
                 }
             }
         };
+        this.hunterFanHandler = function (evt) {
+            let msg = {status: {rssi: evt.rssi}};
+            if (evt.subtype === 0) {
+                msg.topic = (rfxcom.hunterFan[evt.subtype] || "HUNTER_FAN_UNKNOWN") + "/" + evt.id;
+                switch (evt.commandNumber) {
+                    case 0x02:
+                        msg.payload = "Toggle";
+                        break;
+
+                    default:
+                        return;
+
+                }
+                if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                    node.send(msg);
+                }
+            }
+        };
+        this.fanHandler = function (evt) {
+            let msg = {status: {rssi: evt.rssi}};
+            msg.topic = (rfxcom.fan[evt.subtype] || "FAN_UNKNOWN") + "/" + evt.id;
+            switch (evt.command) {
+                case "Light":
+                    msg.payload = "Toggle";
+                    break;
+
+                case "Light On":
+                    msg.payload = "On";
+                    break;
+
+                case "Light Off":
+                    msg.payload = "Off";
+                    break;
+
+                default:
+                    return;
+
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                node.send(msg);
+            }
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
@@ -524,6 +566,8 @@ module.exports = function (RED) {
                         node.rfxtrx.removeListener("lighting5", node.lighting5Handler);
                         node.rfxtrx.removeListener("lighting6", node.lighting6Handler);
                         node.rfxtrx.removeListener("security1", node.security1Handler);
+                        node.rfxtrx.removeListener("hunterfan", node.hunterFanHandler);
+                        node.rfxtrx.removeListener("fan", node.fanHandler);
                     }
                     releasePort(node);
                 });
@@ -532,6 +576,8 @@ module.exports = function (RED) {
                 node.rfxtrx.on("lighting5", this.lighting5Handler);
                 node.rfxtrx.on("lighting6", this.lighting6Handler);
                 node.rfxtrx.on("security1", this.security1Handler);
+                node.rfxtrx.on("hunterfan", this.hunterFanHandler);
+                node.rfxtrx.on("fan", this.fanHandler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -1349,12 +1395,16 @@ module.exports = function (RED) {
             } else if (/on/i.test(payload) || payload === 1 || payload === true) {
                 if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
                     node.rfxtrx.transmitters[protocolName].switchOnLight(address[0], address[1]);
+                } else if (node.rfxtrx.transmitters[protocolName].isSubtype("FALMEC")) {
+                    node.rfxtrx.transmitters[protocolName].switchLightOn(address);
                 } else {
                     node.rfxtrx.transmitters[protocolName].switchOn(address);
                 }
             } else if (/off/i.test(payload) || payload === 0 || payload === false) {
                 if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
                     node.rfxtrx.transmitters[protocolName].switchOffLight(address[0], address[1]);
+                } else if (node.rfxtrx.transmitters[protocolName].isSubtype("FALMEC")) {
+                    node.rfxtrx.transmitters[protocolName].switchLightOff(address);
                 } else {
                     node.rfxtrx.transmitters[protocolName].switchOff(address);
                 }
@@ -1376,8 +1426,11 @@ module.exports = function (RED) {
                     node.warn("Missing scene number");
                 }
             } else if (/toggle/i.test(payload)) {
-                node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
-            } else if (/program|learn/i.test(payload)) {
+                if (node.rfxtrx.transmitters[protocolName].isSubtype(["HUNTER_FAN", "SIEMENS_SF01", "LUCCI_AIR",
+                        "WESTINGHOUSE_7226640", "CASAFAN", "LUCCI_AIR_DC", "FT1211R", "LUCCI_AIR_DCII", "NOVY"])) {
+                    node.rfxtrx.transmitters[protocolName].toggleLightOnOff(address);
+                }
+            } else if (/program|learn|pair/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].program(address);
             } else {
                 node.warn("Don't understand payload '" + payload + "'");
@@ -1406,19 +1459,31 @@ module.exports = function (RED) {
                         return;
                     }
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
-                    deviceAddress = path.slice(1, -1);
-                    unitAddress = parseUnitAddress(path.slice(-1)[0]);
                     try {
                         subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "lighting2", "lighting3",
-                                                                           "lighting5", "lighting6", "homeConfort", "security1"]);
+                                                  "lighting5", "lighting6", "homeConfort", "security1", "fan", "hunterFan"]);
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-lights-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
+                            switch (node.rfxtrx.transmitters[protocolName].packetType) {
+                                case "hunterFan":
+                                case "fan":
+                                    deviceAddress = path[1];
+                                    unitAddress = [];
+                                    break;
+
+                                default:
+                                    deviceAddress = path.slice(1, -1);
+                                    unitAddress = parseUnitAddress(path.slice(-1)[0]);
+                                    break;
+                            }
                             let levelRange = [];
                             switch (node.rfxtrx.transmitters[protocolName].packetType) {
                                 case "lighting1" :
                                 case "lighting6" :
                                 case "homeConfort" :
+                                case "fan":
+                                case "hunterFan":
                                     break;
 
                                 case "lighting2" :
@@ -1804,7 +1869,7 @@ module.exports = function (RED) {
                     command = "UP";
                 } else if (/DOW|DEC|-/i.test(msg.payload)) {
                     command = "DOWN";
-                } else if (/program|learn/i.test(msg.payload)) {
+                } else if (/program|learn|pair/i.test(msg.payload)) {
                     command = "PROGRAM";
                 }
             }
