@@ -253,7 +253,7 @@ recent message to each specific device address is repeated: the next message sen
         },
         oneditprepare: function() {
             var topicSource = $("#node-input-topicSource"),
-                    retransmit = $("#node-input-retransmit");
+                retransmit = $("#node-input-retransmit");
             retransmit.change(function () {
                 var mode = retransmit.find("option:selected").val();
                 if (mode === "none") {
@@ -272,6 +272,104 @@ recent message to each specific device address is repeated: the next message sen
             retransmit.val(this.retransmit);
             retransmit.change();
             topicSource.change(function () {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is a transmitter node for fans -->
+<script type="text/x-red" data-template-name="rfx-fan-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="icon-bullhorn"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="icon-envelope"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="protocol/device address/unit address">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-fan-out -->
+<script type="text/x-red" data-help-name="rfx-fan-out">
+<p>
+Sends commands to fans & ventilators using an RFXtrx433 transceiver
+</p>
+<p>The input message topic is the device 'address'. The input message payload is the command. Alternatively, the
+same device address can be used for all messages.
+</p>
+<p>
+Addresses take the form '<b>type</b>/<b>device address</b>', where <b>type</b> is the name of the
+family of devices and <b>device address</b> is the address of the remote device.
+For example 'NOVY/0x3' is a Novy cooker hood paired with remote address 0x3. Supported device types are:
+<ul>
+<li>CASAFAN</li><li>FALMEC</li><li>FT1211R</li><li>HUNTER_FAN</li><li>ITHO_CVE_RFT</li><li>ITHO_CVE_ECO_RFT</li>
+<li>LUCCI_AIR</li><li>LUCCI_AIR_DC</li><li>LUCCI_AIR_DCII</li><li>NOVY</li><li>SIEMENS_SF01</li><li>WESTINGHOUSE_7226640</li>
+</ul>
+</p>
+<p>
+Supported commands vary (a lot) between different devices. In most cases the speed may be changed, either directly
+by commands like <b>slow</b>, <b>medium</b>, or <b>fast</b>; or by using a numeric value, like <b>speed 2</b>. Most devices
+understand <b>start</b> & <b>stop</b>, but in some cases there is just one command which alternately starts & stops the fan:
+use <b>power</b> for these. A few fans allow change of direction: either using a pair of commands like <b>normal</b> &
+<b>reverse</b>, or just a single <b>reverse</b> command which alternates between the two.
+</p>
+<p>
+A fan's built-in timer can be started by a <b>timer</b> command, with an optional numeric parameter. This is interpreted
+differently by different fans, and may be ignored entirely.
+</p>
+<p>
+Where a fan has a built-in light, this may be controlled using an <i>rfx-lights-out</i> node in the same way as any other
+lighting device (using the same device address for both fan & light nodes). Programmable devices may be put into their
+'learn' mode using a <b>program</b> command.
+</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-fan-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            topicSource: { value:"msg", required:true },
+            topic: { value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.length > 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-fan");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource");
+            topicSource.change(function() {
                 var id = topicSource.find("option:selected").val();
                 if (id == "node") {
                     $("#node-input-row-topic").show();

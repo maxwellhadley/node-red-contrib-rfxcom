@@ -1555,6 +1555,210 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("rfx-lights-out", RfxLightsOutNode);
 
+// An output node for sending messages to fans
+    function RfxFanOutNode(n) {
+        RED.nodes.createNode(this, n);
+        this.port = n.port;
+        this.topicSource = n.topicSource || "msg";
+        this.topic = stringToParts(n.topic);
+        this.name = n.name;
+        this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+        const node = this;
+
+        const parseSpeed = function (payload, speedRange) {
+            let value = NaN;
+            if (speedRange.length === 0 || /[0-9]+/.test(payload) === false) {
+                if (/decr|redu|slow/i.test(payload)) {
+                    return "-";
+                } else if (/incr|fast/i.test(payload)) {
+                    return "+";
+                }
+            }
+            if (/[0-9]+/.test(payload) === false) {
+                if (/\+/.test(payload)) {
+                    return "+";
+                } else if (/-/.test(payload)) {
+                    return "-";
+                }
+            }
+            if (speedRange === [1, 3]){
+                if (/lo/i.test(payload)) {
+                    return 1;
+                } else if(/med/i.test(payload)) {
+                    return 2;
+                } else if(/hi/i.test(payload)) {
+                    return 3;
+                }
+            }
+            if (speedRange === [1, 4]) {
+                if (/ful/i.test(payload)) {
+                    return 4;
+                }
+            }
+            const numericStrings = /[0-9]+(\.[0-9]*)?/.exec(payload);
+            if (numericStrings === null || speedRange === undefined) {
+                return NaN;
+            }
+            value = parseFloat(numericStrings[0]);
+            if (payload.match(/[0-9] *%/)) {
+                value = value/100;
+                value = Math.max(0, Math.min(1, value));
+                if (speedRange[0] === 0) {
+                    return Math.round(value*speedRange[1]);
+                } else {
+                    return Math.max(1, Math.round(value*speedRange[1]));
+                }
+            } else {
+                value = Math.round(value);
+                if (value > speedRange[1]) {
+                    return speedRange[1];
+                } else if (value < speedRange[0]) {
+                    return speedRange[0];
+                } else {
+                    return value;
+                }
+            }
+        };
+
+        const parseTime = function (payload, protocolName) {
+            const numericStrings = /[0-9]+(\.[0-9]*)?/.exec(payload);
+            if (numericStrings === null) {
+                return 1;
+            }
+            const value = parseFloat(numericStrings[0]);
+            return Math.round(value);
+        };
+
+        const parseCommand = function (protocolName, address, payload, speedRange) {
+            if (/^ *\+ *$|^ *- *$|speed|slo|fast|lo|med|hi|ful|%|[0-9]\.|\.[0-9]/i.test(payload)) {
+                const speed = parseSpeed(payload, speedRange);
+                if (isFinite(speed)) {
+                    node.rfxtrx.transmitters[protocolName].setSpeed(address, speed);
+                } else if (speed === '+') {
+                    node.rfxtrx.transmitters[protocolName].increaseSpeed(address);
+                } else if (speed === '-') {
+                    node.rfxtrx.transmitters[protocolName].decreaseSpeed(address);
+                } else {
+                    node.warn("Don't understand speed-set command '" + payload + "'");
+                }
+            } else if (/power|toggle/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
+            } else if (/time/i.test(payload)) {
+                const timeValue = parseTime(payload, protocolName);
+                if (protocolName === "NOVY") {
+                    node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
+                    node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].startTimer(address, timeValue);
+                }
+            } else if (/on|start|run/i.test(payload) || payload === 1 || payload === "1" || payload === true) {
+                try {
+                    node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
+                } catch {
+                    if (speedRange.length > 0) {
+                        node.rfxtrx.transmitters[protocolName].setSpeed(address, 1);
+                    } else {
+                        node.rfxtrx.transmitters[protocolName].increaseSpeed(address);
+                    }
+                }
+            } else if (/off|stop/i.test(payload) || payload === 0 || payload === "0" || payload === false) {
+                node.rfxtrx.transmitters[protocolName].switchOff(address);
+            } else if (/program|learn|pair/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].program(address);
+            } else if (/reverse/i.test(payload)) {
+                try {
+                    node.rfxtrx.transmitters[protocolName].setFanDirection(address, 0);
+                } catch {
+                    node.rfxtrx.transmitters[protocolName].toggleFanDirection(address);
+                }
+            } else if (/natural|normal|forward/i.test(payload)) {
+                node.rfxtrx.transmitters[protocolName].setFanDirection(address, 1);
+            } else {
+                node.warn("Don't understand payload '" + payload + "'");
+            }
+        };
+
+        if (node.rfxtrxPort) {
+            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
+            if (node.rfxtrx !== null) {
+                showConnectionStatus(node);
+                node.on("close", function () {
+                    releasePort(node);
+                });
+                node.on("input", function (msg) {
+                    // Get the device address from the node topic, or the message topic if the node topic is undefined;
+                    // parse the device command from the message payload; and send the appropriate command to the address
+                    let path = [], protocolName, subtype, deviceAddress, speedRange;
+                    if (node.topicSource === "node" && node.topic !== undefined) {
+                        path = node.topic;
+                    } else if (msg.topic !== undefined) {
+                        path = stringToParts(msg.topic);
+                    }
+                    if (path.length === 0) {
+                        node.warn((node.name || "rfx-fan-out ") + ": missing topic");
+                        return;
+                    }
+                    protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
+                    deviceAddress = path.slice(1, 2);
+                    deviceAddress = path[1];
+                    try {
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["fan", "hunterFan"]);
+                        if (subtype < 0) {
+                            node.warn((node.name || "rfx-fan-out ") + ": device type '" + protocolName + "' is not supported");
+                        } else {
+                            switch (protocolName) {
+                                case "ITHO_CVE_RFT":
+                                    speedRange = [1, 3];
+                                    break;
+
+                                case "LUCCI_AIR":
+                                case "WESTINGHOUSE_7226640":
+                                case "CASAFAN":
+                                case "HUNTER_FAN":
+                                    speedRange = [0, 3];
+                                    break;
+
+                                case "FT1211R":
+                                    speedRange = [1, 5];
+                                    break;
+
+                                case "FALMEC":
+                                    speedRange = [0, 4];
+                                    break;
+
+                                case "LUCCI_AIR_DCII":
+                                    speedRange = [0, 6];
+                                    break;
+
+                                case "ITHO_CVE_ECO_RFT":
+                                    speedRange = [1, 4];
+                                    break;
+
+                                default:
+                                    speedRange = [];
+                                    break;
+                            }
+                            parseCommand(protocolName, deviceAddress, msg.payload, speedRange);
+                        }
+                    } catch (exception) {
+                        if (exception.message.indexOf("is not a function") >= 0) {
+                            const alexaCommand = typeof msg.command === "string" ? msg.command + ":" : "";
+                            node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
+                                exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
+                        } else {
+                            node.warn(exception);
+                        }
+                    }
+                });
+            }
+        } else {
+            node.error("missing config: rfxtrx-port");
+        }
+    }
+
+    RED.nodes.registerType("rfx-fan-out", RfxFanOutNode);
+
 // An input node for listening to messages from doorbells
     function RfxDoorbellInNode(n) {
         RED.nodes.createNode(this, n);
@@ -1633,7 +1837,7 @@ module.exports = function (RED) {
                 node.warn(exception);
             }
         };
-        
+
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
