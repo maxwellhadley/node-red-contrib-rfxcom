@@ -23,6 +23,8 @@ switches.
 
 **rfx-lights-out** Sends messages to 'lighting' type devices including switches, dimmers, and some types of relay.
 
+**rfx-fan-out** Sends messages to extractor fans, ceiling fans, ventilators and cooker hoods
+
 **rfx-blinds-in** Receives messages from curtains, blinds, and awnings remote controls (also supports the LightwaveRF
 in-line relay)
 
