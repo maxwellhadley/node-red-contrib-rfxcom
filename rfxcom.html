@@ -221,7 +221,160 @@ is a value between 0 and 1) to set the brightness. Not all devices support all c
 <p>
 To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most
 recent message to each specific device address is repeated: the next message sent there will cancel any pending repeats.
-</p>
+<p>Supported device types are:
+<ul>
+<li>
+AC
+</li>
+<li>
+ANSLUT
+</li>
+<li>
+AOKE
+</li>
+<li>
+ARC
+</li>
+<li>
+AVANTEK
+</li>
+<li>
+BBSB
+</li>
+<li>
+BLYSS
+</li>
+<li>
+CASAFAN
+</li>
+<li>
+CHACON
+</li>
+<li>
+COCO
+</li>
+<li>
+CONRAD
+</li>
+<li>
+CUVEO
+</li>
+<li>
+ELRO
+</li>
+<li>
+EMW100
+</li>
+<li>
+ENERGENIE_5_GANG
+</li>
+<li>
+ENERGENIE_ENER010
+</li>
+<li>
+EURODOMEST
+</li>
+<li>
+FALMEC
+</li>
+<li>
+FT1211R
+</li>
+<li>
+HOMEEASY_EU
+</li>
+<li>
+HQ
+</li>
+<li>
+HUNTER_FAN
+</li>
+<li>
+IMPULS
+</li>
+<li>
+IT
+</li>
+<li>
+KAMBROOK
+</li>
+<li>
+KANGTAI
+</li>
+<li>
+KOPPLA
+</li>
+<li>
+LEGRAND
+</li>
+<li>
+LIGHTWAVERF
+</li>
+<li>
+LIVOLO
+</li>
+<li>
+LIVOLO_APPLIANCE
+</li>
+<li>
+LUCCI_AIR
+</li>
+<li>
+LUCCI_AIR_DC
+</li>
+<li>
+LUCCI_AIR_DCII
+</li>
+<li>
+MDREMOTE
+</li>
+<li>
+MDREMOTE_107
+</li>
+<li>
+MDREMOTE_108
+</li>
+<li>
+NOVY
+</li>
+<li>
+OASE_FM
+</li>
+<li>
+PHILIPS_SBC
+</li>
+<li>
+RGB432W
+</li>
+<li>
+RISING_SUN
+</li>
+<li>
+SIEMENS_SF01
+</li>
+<li>
+TEL_010
+</li>
+<li>
+TRC02
+</li>
+<li>
+TRC02_2
+</li>
+<li>
+WAVEMAN
+</li>
+<li>
+WESTINGHOUSE_7226640
+</li>
+<li>
+X10
+</li>
+<li>
+X10_SECURITY
+</li>
+
+</ul>
 </script>
 
 <script type="text/javascript">
@@ -319,11 +472,7 @@ same device address can be used for all messages.
 <p>
 Addresses take the form '<b>type</b>/<b>device address</b>', where <b>type</b> is the name of the
 family of devices and <b>device address</b> is the address of the remote device.
-For example 'NOVY/0x3' is a Novy cooker hood paired with remote address 0x3. Supported device types are:
-<ul>
-<li>CASAFAN</li><li>FALMEC</li><li>FT1211R</li><li>HUNTER_FAN</li><li>ITHO_CVE_RFT</li><li>ITHO_CVE_ECO_RFT</li>
-<li>LUCCI_AIR</li><li>LUCCI_AIR_DC</li><li>LUCCI_AIR_DCII</li><li>NOVY</li><li>SIEMENS_SF01</li><li>WESTINGHOUSE_7226640</li>
-</ul>
+For example 'NOVY/0x3' is a Novy cooker hood paired with remote address 0x3.
 </p>
 <p>
 Supported commands vary (a lot) between different devices. In most cases the speed may be changed, either directly
@@ -341,6 +490,11 @@ Where a fan has a built-in light, this may be controlled using an <i>rfx-lights-
 lighting device (using the same device address for both fan & light nodes). Programmable devices may be put into their
 'learn' mode using a <b>program</b> command.
 </p>
+Supported device types are:
+<ul>
+<li>CASAFAN</li><li>FALMEC</li><li>FT1211R</li><li>HUNTER_FAN</li><li>ITHO_CVE_RFT</li><li>ITHO_CVE_ECO_RFT</li>
+<li>LUCCI_AIR</li><li>LUCCI_AIR_DC</li><li>LUCCI_AIR_DCII</li><li>NOVY</li><li>SIEMENS_SF01</li><li>WESTINGHOUSE_7226640</li>
+</ul>
 </script>
 
 <script type="text/javascript">
@@ -506,8 +660,8 @@ device address can be used for all messages.
 Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the
 family of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit
 address</b> is the unit or channel number of the addressed device. Channel 0 or '+' is used for group control
-(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10 &amp;
-BLINDS_T11 do not have unit addresses.
+(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10, BLINDS_T11  &amp;
+BLINDS_T18 do not have unit addresses.
 </p>
 <p>
 For example, 'HARRISON/A/3' is a curtain motor with house code A and unit address 3, and 'BLINDS_T5/0x123' is a Media
@@ -529,6 +683,10 @@ to program an association between the ID from the message topic and the motor.
 Somfy venetian blind motors come in EU and US variants: the command mode used is set from the Serial Port configuration
 dialog, and applies to <i>all</i> motors used with the transceiver on that serial port.
 </p>
+Supported device types are:
+<ul>
+<li>ASA</li><li>BLINDS_T0 to BLINDS_T18</li><li>GEOM</li><li>HARRISON</li><li>LIGHTWAVERF</li><li>RFY</li><li>RFYEXT</li>
+</ul>
 </script>
 
 <script type="text/javascript">
@@ -691,6 +849,10 @@ of devices (see RFXCOM documentation), and <b>device address</b> is the address 
 other than BYRON_MP001, the address is a hexadecimal number. For these devices, the address is a six-bit binary number
 corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp;=&nbsp;switch off.
 </p>
+Supported device types are:
+<ul>
+<li>ALFAWISE</li><li>ARC</li><li>BYRON_BY</li><li>BYRON_MP001</li><li>BYRON_SX</li><li>ENVIVO</li><li>SELECT_PLUS</li>
+</ul>
 </script>
 
 <script type="text/javascript">
@@ -947,7 +1109,12 @@ temperature and switch "On" or "Off"
 <p>The input message topic is the TRV 'address'. Alternatively, the same device address can be used for all messages.
 Addresses take the form '<b>SMARTWARES</b>/<b>address</b>/<b>unit code</b>', where <b>device address</b> is the address
 of the remote controller, 0x01 to 0x3ffffff, and <b>unit code</b> is the TRV channel number, 1 to 16.
-</p></script>
+</p>
+Supported device types are:
+<ul>
+<li>SMARTWARES</li>
+</ul>
+</script>
 
 <script type="text/javascript">
     RED.nodes.registerType('rfx-trv-out', {
@@ -1055,6 +1222,11 @@ are optional. Fan speeds default to 'auto' (6).
 <p>
 Appropriate Alexa Node-RED Home Skill command messages are also accepted by all device types.
 </p>
+Supported device types are:
+<ul>
+<li>DIGIMAX_SHORT</li><li>DIGIMAX_TLX7506</li><li>G6R_H3T1</li><li>G6R_H4S</li><li>G6R_H4T1</li><li>G6R_H4TB</li><li>G6R_H4TD</li>
+<li>HE105</li><li>MCZ_PELLET_STOVE_1_FAN</li><li>MCZ_PELLET_STOVE_2_FAN</li><li>MCZ_PELLET_STOVE_3_FAN</li><li>RTS10_RFS10_TLX1206</li>
+</ul>
 </script>
 
 <script type="text/javascript">
@@ -1234,14 +1406,18 @@ Sends control commands to X10 alarm systems and alarm signals to wireless smoke 
 <p>The input message topic is the alarm 'address'.
 Alternatively, the same device address can be used for all messages.
 Addresses take the form '<b><i>device type</i></b>/<b>device address</b>', where <b>device address</b> is the address
-of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device. Alarm devices of types
-<b>X10_SECURITY</b>, <b>KD101</b>, <b>SA30</b>, and <b>RM74RF</b> are supported.
+of the alarm, 0x01 to either 0xffff or 0x3fffff, depending on the type of device.
 </p>
 <p>
 The supported X10 alarm commands are <b>Panic</b> and <b>End Panic</b>, <b>Arm</b> (with options <b>Home</b> or <b>Away</b>,
 and <b>Delayed</b>), and <b>Disarm</b>. To sound an alarm on an X10_SECURITY alarm system, use the payload <b>Panic</b>.
 Other types of device ignore the message payload and will always sound an alarm when a message is received.
 </p>
+Supported device types are:
+<ul>
+<li>KD101</li><li>RM74RF</li><li>SA30</li><li>X10_SECURITY</li>
+</ul>
+
 </script>
 
 <script type="text/javascript">
@@ -1486,7 +1662,7 @@ provided in the 'raw' property of the message; if multiple matches are found, th
 the topic & payload. The message also has a 'status' property indicating the received the signal strength (rssi).
 <p>
 When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
-must be unique. All addresses should start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
+must be unique. All addresses must start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
 rfx-PT2262-out nodes, or different nodes may use different lists.
 <p>
 The node can either receive all messages, or only those from a restricted subset of adresses which match a topic
@@ -1589,13 +1765,17 @@ the message, if present, will be sent. A 'raw.pulseWidth' property can also be u
 in this case.
 <p>
 When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
-must be unique. All addresses should start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
+must be unique. All addresses must start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
 rfx-PT2262-out nodes, or different nodes may use different lists.
 <p>
 <p>
 To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most
 recent message to each specific device address is repeated: the next message sent there will cancel any pending repeats.
 </p>
+Supported device types are:
+<ul>
+<li>PT2262</li>
+</ul>
 </script>
 
 <script type="text/javascript">
