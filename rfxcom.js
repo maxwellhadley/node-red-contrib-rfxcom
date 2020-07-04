@@ -2302,14 +2302,9 @@ module.exports = function (RED) {
         this.blinds1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.blinds1[evt.subtype] || "BLINDS_UNKNOWN") + "/" + evt.id;
-            if (evt.subtype === 0 || evt.subtype === 1) {
+            if (evt.subtype !== 2 && evt.subtype !== 4 && evt.subtype !== 5 &&
+                evt.subtype !== 10 && evt.subtype !== 11 && evt.subtype !== 18) {
                 msg.topic = msg.topic + "/" + evt.unitCode;
-            } else if (evt.subtype === 3) {
-                if (evt.unitCode === 0x10) {
-                    msg.topic = msg.topic + "/0"
-                } else {
-                    msg.topic = msg.topic + "/" + evt.unitCode + 1;
-                }
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.payload = evt.command;
