@@ -1394,7 +1394,7 @@ module.exports = function (RED) {
                 }
             } else if (/on/i.test(payload) || payload === 1 || payload === true) {
                 if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
-                    node.rfxtrx.transmitters[protocolName].switchOnLight(address[0], address[1]);
+                    node.rfxtrx.transmitters[protocolName].switchLightOn(address[0], address[1]);
                 } else if (node.rfxtrx.transmitters[protocolName].isSubtype("FALMEC")) {
                     node.rfxtrx.transmitters[protocolName].switchLightOn(address);
                 } else {
@@ -1402,7 +1402,7 @@ module.exports = function (RED) {
                 }
             } else if (/off/i.test(payload) || payload === 0 || payload === false) {
                 if (node.rfxtrx.transmitters[protocolName].isSubtype("X10_SECURITY")) {
-                    node.rfxtrx.transmitters[protocolName].switchOffLight(address[0], address[1]);
+                    node.rfxtrx.transmitters[protocolName].switchLightOff(address[0], address[1]);
                 } else if (node.rfxtrx.transmitters[protocolName].isSubtype("FALMEC")) {
                     node.rfxtrx.transmitters[protocolName].switchLightOff(address);
                 } else {
@@ -1429,6 +1429,8 @@ module.exports = function (RED) {
                 if (node.rfxtrx.transmitters[protocolName].isSubtype(["HUNTER_FAN", "SIEMENS_SF01", "LUCCI_AIR",
                         "WESTINGHOUSE_7226640", "CASAFAN", "LUCCI_AIR_DC", "FT1211R", "LUCCI_AIR_DCII", "NOVY"])) {
                     node.rfxtrx.transmitters[protocolName].toggleLightOnOff(address);
+                } else {
+                    node.rfxtrx.transmitters[protocolName].toggleOnOff(address);
                 }
             } else if (/program|learn|pair/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].program(address);
