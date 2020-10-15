@@ -365,8 +365,10 @@ module.exports = function (RED) {
         this.lighting5Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.lighting5[evt.subtype] || "LIGHTING5_UNKNOWN") + "/" + evt.id;
-            if ((evt.commandNumber === 2 && (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4) ) ||
-                (evt.commandNumber === 3) && (evt.subtype === 2 || evt.subtype === 4)) {
+            if ((evt.commandNumber === 2 /* Group Off */ &&
+                    (evt.subtype === 0 || evt.subtype === 2 || evt.subtype === 4 || evt.subtype === 17) ) ||
+                (evt.commandNumber === 3) /* Group On */ &&
+                    (evt.subtype === 2 || evt.subtype === 4 || evt.subtype === 17)) {
                 msg.topic = msg.topic + "/0";
             } else {
                 msg.topic = msg.topic + "/" + evt.unitCode;
@@ -407,8 +409,9 @@ module.exports = function (RED) {
                         }
                         break;
 
-                    case 2:
-                    case 4: // BBSB & CONRAD
+                    case 2:  // BBSB
+                    case 4:  // CONRAD
+                    case 17: // KANGTAI
                         switch (evt.commandNumber) {
                             case 0:
                             case 2:
@@ -449,20 +452,19 @@ module.exports = function (RED) {
                         }
                         break;
 
-                    case 17: // KANGTAI
+                    case 13: // LEGRAND
                         switch (evt.commandNumber) {
-                            case 0:
-                                msg.payload = "Off";
-                                break;
-
-                            case 1:
-                                msg.payload = "On";
+                            case 0x00:
+                                msg.payload = "Toggle";
                                 break;
 
                             default:
                                 return;
                         }
                         break;
+
+                    default:
+                        return;
                 }
                 node.send(msg);
             }
