@@ -448,6 +448,21 @@ module.exports = function (RED) {
                                 return;
                         }
                         break;
+
+                    case 17: // KANGTAI
+                        switch (evt.commandNumber) {
+                            case 0:
+                                msg.payload = "Off";
+                                break;
+
+                            case 1:
+                                msg.payload = "On";
+                                break;
+
+                            default:
+                                return;
+                        }
+                        break;
                 }
                 node.send(msg);
             }
