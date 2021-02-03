@@ -1558,7 +1558,7 @@ module.exports = function (RED) {
                                     node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
                                         exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
                                 } else {
-                                    node.warn(exception);
+                                    node.warn((node.name || "rfx-lights-out") + ": " + exception);
                                 }
                             }
                         }
@@ -1766,7 +1766,7 @@ module.exports = function (RED) {
                             node.warn("Input '" +  alexaCommand + msg.payload + "' generated command '" +
                                 exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
                         } else {
-                            node.warn(exception);
+                            node.warn((node.name || "rfx-fan-out") + ": " + exception);
                         }
                     }
                 });
@@ -2419,6 +2419,17 @@ module.exports = function (RED) {
                 } else {
                     node.rfxtrx.transmitters[protocolName].confirm(address);
                 }
+            } else if (/inter|pos/i.test(payload)) {
+                let position = 2;
+                const match = /[0-9]+(\.[0-9]*)?/.exec(payload);
+                if (match !== null) {
+                    position = parseFloat(match[0]);
+                }
+                if (isNaN(position)) {
+                    position = 2;
+                } else {
+                    node.rfxtrx.transmitters[protocolName].intermediatePosition(address, position);
+                }
             } else if (/up/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].up(address);
             } else if (/down/i.test(payload)) {
@@ -2502,7 +2513,7 @@ module.exports = function (RED) {
                                     node.warn((node.name || "rfx-blinds-out") + ": Input '" + alexaCommand + msg.payload + "' generated command '" +
                                         exception.message.match(/[^_a-zA-Z]([_0-9a-zA-Z]*) is not a function/)[1] + "' not supported by device");
                                 } else {
-                                    node.warn(exception);
+                                    node.warn((node.name || "rfx-blinds-out") + ": " + exception);
                                 }
                             }
                         }
