@@ -304,20 +304,20 @@ module.exports = function (RED) {
                 switch (evt.commandNumber) {
                     case 0 :
                     case 5 :
-                        msg.payload = "Off";
+                        msg.payload = "off";
                         break;
 
                     case 1 :
                     case 6 :
-                        msg.payload = "On";
+                        msg.payload = "on";
                         break;
 
                     case 2 :
-                        msg.payload = "Dim";
+                        msg.payload = "dim";
                         break;
 
                     case 3 :
-                        msg.payload = "Bright";
+                        msg.payload = "bright";
                         break;
 
                     case 7 :    // The ARC 'Chime' command - handled in rfx-doorbells so ignore it here
@@ -342,17 +342,17 @@ module.exports = function (RED) {
                 switch (evt.commandNumber) {
                     case 0:
                     case 3:
-                        msg.payload = "Off";
+                        msg.payload = "off";
                         break;
 
                     case 1:
                     case 4:
-                        msg.payload = "On";
+                        msg.payload = "on";
                         break;
 
                     case 2:
                     case 5:
-                        msg.payload = "Dim " + evt.level/15*100 + "%";
+                        msg.payload = "dim " + evt.level/15*100 + "%";
                         break;
 
                     default:
@@ -379,11 +379,11 @@ module.exports = function (RED) {
                         switch (evt.commandNumber) {
                             case 0:
                             case 2:
-                                msg.payload = "Off";
+                                msg.payload = "off";
                                 break;
 
                             case 1:
-                                msg.payload = "On";
+                                msg.payload = "on";
                                 break;
 
                             case 3:
@@ -391,11 +391,11 @@ module.exports = function (RED) {
                             case 5:
                             case 6:
                             case 7:
-                                msg.payload = "Mood" + (evt.commandNumber - 2);
+                                msg.payload = "mood" + (evt.commandNumber - 2);
                                 break;
 
                             case 16:
-                                msg.payload = "Dim " + evt.level/31*100 + "%";
+                                msg.payload = "dim " + evt.level/31*100 + "%";
                                 break;
 
                             case 17:
@@ -415,12 +415,12 @@ module.exports = function (RED) {
                         switch (evt.commandNumber) {
                             case 0:
                             case 2:
-                                msg.payload = "Off";
+                                msg.payload = "off";
                                 break;
 
                             case 1:
                             case 3:
-                                msg.payload = "On";
+                                msg.payload = "on";
                                 break;
 
                             default:
@@ -431,19 +431,19 @@ module.exports = function (RED) {
                     case 6: // TRC02
                         switch (evt.commandNumber) {
                             case 0:
-                                msg.payload = "Off";
+                                msg.payload = "off";
                                 break;
 
                             case 1:
-                                msg.payload = "On";
+                                msg.payload = "on";
                                 break;
 
                             case 2:
-                                msg.payload = "Bright";
+                                msg.payload = "bright";
                                 break;
 
                             case 3:
-                                msg.payload = "Dim";
+                                msg.payload = "dim";
                                 break;
 
                             default:
@@ -455,7 +455,7 @@ module.exports = function (RED) {
                     case 13: // LEGRAND
                         switch (evt.commandNumber) {
                             case 0x00:
-                                msg.payload = "Toggle";
+                                msg.payload = "toggle";
                                 break;
 
                             default:
@@ -481,12 +481,12 @@ module.exports = function (RED) {
                 switch (evt.commandNumber) {
                     case 1:
                     case 3:
-                        msg.payload = "Off";
+                        msg.payload = "off";
                         break;
 
                     case 0:
                     case 2:
-                        msg.payload = "On";
+                        msg.payload = "on";
                         break;
 
                     default:
@@ -502,22 +502,22 @@ module.exports = function (RED) {
                 msg.topic = (rfxcom.security1[2]) + "/" + evt.id + "/";
                 switch (evt.deviceStatus) {
                     case 0x10:
-                        msg.payload = "Off";
+                        msg.payload = "off";
                         msg.topic = msg.topic + "1";
                         break;
 
                     case 0x11:
-                        msg.payload = "On";
+                        msg.payload = "on";
                         msg.topic = msg.topic + "1";
                         break;
 
                     case 0x12:
-                        msg.payload = "Off";
+                        msg.payload = "off";
                         msg.topic = msg.topic + "2";
                         break;
 
                     case 0x13:
-                        msg.payload = "On";
+                        msg.payload = "on";
                         msg.topic = msg.topic + "2";
                         break;
 
@@ -536,7 +536,7 @@ module.exports = function (RED) {
                 msg.topic = (rfxcom.hunterFan[evt.subtype] || "HUNTER_FAN_UNKNOWN") + "/" + evt.id;
                 switch (evt.commandNumber) {
                     case 0x02:
-                        msg.payload = "Toggle";
+                        msg.payload = "toggle";
                         break;
 
                     default:
@@ -553,15 +553,15 @@ module.exports = function (RED) {
             msg.topic = (rfxcom.fan[evt.subtype] || "FAN_UNKNOWN") + "/" + evt.id;
             switch (evt.command) {
                 case "Light":
-                    msg.payload = "Toggle";
+                    msg.payload = "toggle";
                     break;
 
                 case "Light On":
-                    msg.payload = "On";
+                    msg.payload = "on";
                     break;
 
                 case "Light Off":
-                    msg.payload = "Off";
+                    msg.payload = "off";
                     break;
 
                 default:
@@ -1071,14 +1071,14 @@ module.exports = function (RED) {
                     case rfxcom.security1.SA30:
                     case rfxcom.security1.RM174RF:
                         if (evt.deviceStatus === rfxcom.security.PANIC) {
-                            msg.payload = "Smoke";
+                            msg.payload = "smoke";
                         }
                         break;
 
                     case rfxcom.security1.MEIANTECH:
                         if (evt.deviceStatus === rfxcom.security.PANIC) {
                             msg.status.battery = evt.batteryLevel;
-                            msg.payload = "Motion";
+                            msg.payload = "motion";
                         }
                         break;
 
@@ -1086,9 +1086,9 @@ module.exports = function (RED) {
                         msg.status.battery = evt.batteryLevel;
                         msg.status.tampered = Boolean(evt.tampered);
                         if (evt.deviceStatus === rfxcom.security.ALARM) {
-                            msg.payload = "Alarm";
+                            msg.payload = "alarm";
                         } else if (evt.tampered) {
-                            msg.payload = "Tamper";
+                            msg.payload = "tamper";
                         }
                         break;
 
@@ -1096,31 +1096,31 @@ module.exports = function (RED) {
                         msg.status.battery = evt.batteryLevel;
                         switch (evt.deviceStatus) {
                             case 0x06:
-                                msg.payload = "Panic";
+                                msg.payload = "panic";
                                 break;
 
                             case 0x07:
-                                msg.payload = "Cancel Panic";
+                                msg.payload = "cancel panic";
                                 break;
 
                             case 0x09:
-                                msg.payload = "Arm Away";
+                                msg.payload = "arm away";
                                 break;
 
                             case 0x0a:
-                                msg.payload = "Arm Away Delayed";
+                                msg.payload = "arm away delayed";
                                 break;
 
                             case 0x0b:
-                                msg.payload = "Arm Home";
+                                msg.payload = "arm home";
                                 break;
 
                             case 0x0c:
-                                msg.payload = "Arm Home Delayed";
+                                msg.payload = "arm home delayed";
                                 break;
 
                             case 0x0d:
-                                msg.payload = "Disarm";
+                                msg.payload = "disarm";
                                 break;
 
                             default:
@@ -1172,27 +1172,27 @@ module.exports = function (RED) {
                             // This ensures a clean shutdown on redeploy
                             node.heartbeats[msg.topic].interval.unref();
                             if (node.outputHeartbeats) {
-                                msg.payload = "Heartbeat";
+                                msg.payload = "heartbeat";
                             }
                         }
                         // Payload priority is Tamper > Alarm/Motion/Normal > Battery Low > Heartbeat (if enabled)
                         if (evt.batteryLevel === 0) {
-                            msg.payload = "Battery Low";
+                            msg.payload = "battery low";
                         }
                         if (evt.deviceStatus === rfxcom.security.MOTION) {
-                            msg.payload = "Motion";
+                            msg.payload = "motion";
                         } else if (evt.deviceStatus !== lastDeviceStatus) {
                             // Only report ALARM/NORMAL status (i.e. window open/closed) if the status has changed
                             if (evt.deviceStatus === rfxcom.security.ALARM ||
                                 evt.deviceStatus === rfxcom.security.ALARM_DELAYED) {
-                                msg.payload = "Alarm";
+                                msg.payload = "alarm";
                             } else if (evt.deviceStatus === rfxcom.security.NORMAL ||
                                        evt.deviceStatus === rfxcom.security.NORMAL_DELAYED) {
-                                msg.payload = "Normal";
+                                msg.payload = "normal";
                             }
                         }
                         if (evt.tampered) {
-                            msg.payload = "Tamper";
+                            msg.payload = "tamper";
                         }
                         break;
 
@@ -1922,9 +1922,9 @@ module.exports = function (RED) {
                 if (msg.command === "SetTargetTemperatureRequest") {
                     temperature = msg.payload;
                 } else if (msg.command === "TurnOnRequest") {
-                    msg.payload = "ON'";
+                    msg.payload = "on";
                 } else if (msg.command === "TurnOffRequest") {
-                    msg.payload = "OFF";
+                    msg.payload = "off";
                 } else {
                     node.warn("Unsupported Alexa command: " + msg.command)
                 }
