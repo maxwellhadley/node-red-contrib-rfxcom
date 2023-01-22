@@ -273,14 +273,24 @@ module.exports = function (RED) {
        };
 
 // The config node holding the PT2262 deviceList object
-    function RfxPT2262DeviceList(n) {
-        RED.nodes.createNode(this, n);
-        this.name = n.name;
-        this.devices = n.devices;
-    }
+function RfxPT2262DeviceList(n) {
+    RED.nodes.createNode(this, n);
+    this.name = n.name;
+    this.devices = n.devices;
+}
 
 // Register the PT2262 config node
-    RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
+RED.nodes.registerType("PT2262-device-list", RfxPT2262DeviceList);
+
+// The config node holding raw output pulse time arrays
+function RfxRawDeviceList(n) {
+    RED.nodes.createNode(this, n);
+    this.name = n.name;
+    this.devices = n.devices;
+}
+
+// Register the raw times config node
+RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
 // An input node for listening to messages from lighting remote controls
     function RfxLightsInNode(n) {
@@ -650,111 +660,222 @@ module.exports = function (RED) {
     RED.nodes.registerType("rfx-PT2262-in", RfxPT2262InNode);
 
 // An output node for sending messages to lighting4 devices, using the PT2262/72 chips
-    function RfxPT2262OutNode(n) {
-        RED.nodes.createNode(this, n);
-        this.port = n.port;
-        this.topicSource = n.topicSource || "msg";
-        this.topic = stringToParts(n.topic);
-        this.retransmit = n.retransmit || "none";
-        this.retransmitInterval = n.retransmitInterval || 20;
-        this.devices = RED.nodes.getNode(n.deviceList).devices || [];
-        this.name = n.name;
-        this.rfxtrxPort = RED.nodes.getNode(this.port);
+function RfxPT2262OutNode(n) {
+    RED.nodes.createNode(this, n);
+    this.port = n.port;
+    this.topicSource = n.topicSource || "msg";
+    this.topic = stringToParts(n.topic);
+    this.retransmit = n.retransmit || "none";
+    this.retransmitInterval = n.retransmitInterval || 20;
+    this.devices = RED.nodes.getNode(n.deviceList).devices || [];
+    this.name = n.name;
+    this.rfxtrxPort = RED.nodes.getNode(this.port);
 
-        const node = this;
-        node.retransmissions = {};
-        node.mustDelete = false;
-        if (node.retransmit === "once") {
-            // Uses a Timeout: period in seconds
-            node.setRetransmission = setTimeout;
-            node.retransmitTime = 1000*node.retransmitInterval;
-            node.clearRetransmission = clearTimeout;
-            node.mustDelete = true;
-        } else if (node.retransmit === "repeat") {
-            // Uses an Interval: period in miutes
-            node.setRetransmission = setInterval;
-            node.retransmitTime = 60*1000*node.retransmitInterval;
-            node.clearRetransmission = clearInterval;
-        }
-
-        if (node.rfxtrxPort) {
-            node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
-            if (node.rfxtrx !== null) {
-                showConnectionStatus(node);
-                getRfxcomSubtype(node.rfxtrx, "PT2262", ["lighting4"]);
-                node.on("close", function () {
-                    purgeTimers(node);
-                    releasePort(node);
-                });
-                node.on("input", function (msg) {
-                    let db, topic, lastCommand, rawData = null, pulseWidth = null;
-                    // Get the topic from either the node or the message
-                    if (node.topicSource === "node" && node.topic !== undefined) {
-                        topic = node.topic;
-                    } else if (msg.topic !== undefined) {
-                        topic = stringToParts(msg.topic);
-                    }
-                    if (topic !== undefined && msg.payload !== undefined) {
-                        // Lookup the topic/payload combination in the device list
-                        db = node.devices.filter(function (entry) {
-                            return msg.payload == entry.payload &&
-                                   topic.length === entry.device.length &&
-                                   checkTopic(topic, entry.device);
-                        });
-                        if (db.length >= 1) {
-                            // If multiple matches use the first
-                            rawData = db[0].rawData;
-                            pulseWidth = db[0].pulseWidth;
-                        } else {
-                            node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
-                        }
-                    } else if (msg.raw !== undefined && msg.raw.data !== undefined) {
-                        // No topic or no payload or neither: check for raw data in the message
-                        rawData = msg.raw.data;
-                        if (msg.raw.pulseWidth !== undefined) {
-                            pulseWidth = msg.raw.pulseWidth;
-                        }
-                        if (topic === undefined) {
-                            topic = ["__none__"];
-                        }
-                    }
-                    if (rawData !== null) {
-                        try {
-                            // Send the command for the first time
-                            node.rfxtrx.transmitters['PT2262'].sendData(rawData, pulseWidth);
-                            // If we reach this point, the command did not throw an error. Check if should retransmit
-                            // it & set the Timeout or Interval as appropriate
-                            if (node.retransmit !== "none") {
-                                // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
-                                // function context, where the function lastCommand() can find them
-                                topic = topic.join("/");
-                                lastCommand = (function () {
-                                    let _rawData = rawData, _pulseWidth = pulseWidth, key = topic;
-                                    return function () {
-                                        node.rfxtrx.transmitters['PT2262'].sendData(_rawData, _pulseWidth);
-                                        if (node.mustDelete) {
-                                            delete(node.retransmissions[key]);
-                                        }
-                                    };
-                                }());
-                                if (node.retransmissions.hasOwnProperty(topic)) {
-                                    node.clearRetransmission(node.retransmissions[topic]);
-                                }
-                                node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
-
-                            }
-                        } catch (exception) {
-                            node.warn(exception.message);
-                        }
-                    }
-                });
-            }
-        } else {
-            node.error("missing config: rfxtrx-port");
-        }
+    const node = this;
+    node.retransmissions = {};
+    node.mustDelete = false;
+    if (node.retransmit === "once") {
+        // Uses a Timeout: period in seconds
+        node.setRetransmission = setTimeout;
+        node.retransmitTime = 1000*node.retransmitInterval;
+        node.clearRetransmission = clearTimeout;
+        node.mustDelete = true;
+    } else if (node.retransmit === "repeat") {
+        // Uses an Interval: period in miutes
+        node.setRetransmission = setInterval;
+        node.retransmitTime = 60*1000*node.retransmitInterval;
+        node.clearRetransmission = clearInterval;
     }
 
-    RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
+    if (node.rfxtrxPort) {
+        node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
+        if (node.rfxtrx !== null) {
+            showConnectionStatus(node);
+            getRfxcomSubtype(node.rfxtrx, "PT2262", ["lighting4"]);
+            node.on("close", function () {
+                purgeTimers(node);
+                releasePort(node);
+            });
+            node.on("input", function (msg) {
+                let db, topic, lastCommand, rawData = null, pulseWidth = null;
+                // Get the topic from either the node or the message
+                if (node.topicSource === "node" && node.topic !== undefined) {
+                    topic = node.topic;
+                } else if (msg.topic !== undefined) {
+                    topic = stringToParts(msg.topic);
+                }
+                if (topic !== undefined && msg.payload !== undefined) {
+                    // Lookup the topic/payload combination in the device list
+                    db = node.devices.filter(function (entry) {
+                        return msg.payload == entry.payload &&
+                               topic.length === entry.device.length &&
+                               checkTopic(topic, entry.device);
+                    });
+                    if (db.length >= 1) {
+                        // If multiple matches use the first
+                        rawData = db[0].rawData;
+                        pulseWidth = db[0].pulseWidth;
+                    } else {
+                        node.warn("rfx-PT2262-out: no raw data found for '" + topic.join("/") + ":" + msg.payload + "'");
+                    }
+                } else if (msg.raw !== undefined && msg.raw.data !== undefined) {
+                    // No topic or no payload or neither: check for raw data in the message
+                    rawData = msg.raw.data;
+                    if (msg.raw.pulseWidth !== undefined) {
+                        pulseWidth = msg.raw.pulseWidth;
+                    }
+                    if (topic === undefined) {
+                        topic = ["__none__"];
+                    }
+                }
+                if (rawData !== null) {
+                    try {
+                        // Send the command for the first time
+                        node.rfxtrx.transmitters['PT2262'].sendData(rawData, pulseWidth);
+                        // If we reach this point, the command did not throw an error. Check if should retransmit
+                        // it & set the Timeout or Interval as appropriate
+                        if (node.retransmit !== "none") {
+                            // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                            // function context, where the function lastCommand() can find them
+                            topic = topic.join("/");
+                            lastCommand = (function () {
+                                let _rawData = rawData, _pulseWidth = pulseWidth, key = topic;
+                                return function () {
+                                    node.rfxtrx.transmitters['PT2262'].sendData(_rawData, _pulseWidth);
+                                    if (node.mustDelete) {
+                                        delete(node.retransmissions[key]);
+                                    }
+                                };
+                            }());
+                            if (node.retransmissions.hasOwnProperty(topic)) {
+                                node.clearRetransmission(node.retransmissions[topic]);
+                            }
+                            node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+
+                        }
+                    } catch (exception) {
+                        node.warn(exception.message);
+                    }
+                }
+            });
+        }
+    } else {
+        node.error("missing config: rfxtrx-port");
+    }
+}
+
+RED.nodes.registerType("rfx-PT2262-out", RfxPT2262OutNode);
+
+// An output node for sending 'Raw' format messages
+function RfxRawOutNode(n) {
+    RED.nodes.createNode(this, n);
+    this.port = n.port;
+    this.topicSource = n.topicSource || "msg";
+    this.topic = stringToParts(n.topic);
+    this.retransmit = n.retransmit || "none";
+    this.retransmitInterval = n.retransmitInterval || 20;
+    this.devices = RED.nodes.getNode(n.deviceList).devices || [];
+    this.name = n.name;
+    this.rfxtrxPort = RED.nodes.getNode(this.port);
+
+    const node = this;
+    node.retransmissions = {};
+    node.mustDelete = false;
+    if (node.retransmit === "once") {
+        // Uses a Timeout: period in seconds
+        node.setRetransmission = setTimeout;
+        node.retransmitTime = 1000*node.retransmitInterval;
+        node.clearRetransmission = clearTimeout;
+        node.mustDelete = true;
+    } else if (node.retransmit === "repeat") {
+        // Uses an Interval: period in miutes
+        node.setRetransmission = setInterval;
+        node.retransmitTime = 60*1000*node.retransmitInterval;
+        node.clearRetransmission = clearInterval;
+    }
+
+    if (node.rfxtrxPort) {
+        node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
+        if (node.rfxtrx !== null) {
+            showConnectionStatus(node);
+            getRfxcomSubtype(node.rfxtrx, "RAW", ["rawtx"]);
+            node.on("close", function () {
+                purgeTimers(node);
+                releasePort(node);
+            });
+            node.on("input", function (msg) {
+                let db, topic, lastCommand, pulseTimes = null, repeats = null;
+                // Get the topic from either the node or the message
+                if (node.topicSource === "node" && node.topic !== undefined) {
+                    topic = node.topic;
+                } else if (msg.topic !== undefined) {
+                    topic = stringToParts(msg.topic);
+                }
+                if (topic !== undefined && msg.payload !== undefined) {
+                    // Lookup the topic/payload combination in the device list
+                    db = node.devices.filter(function (entry) {
+                        return msg.payload == entry.payload &&
+                               topic.length === entry.device.length &&
+                               checkTopic(topic, entry.device);
+                    });
+                    if (db.length >= 1) {
+                        // If multiple matches use the first
+                        pulseTimes = db[0].pulseTimes;
+                        repeats = db[0].repeats;
+                    } else {
+                        node.warn("rfx-raw-out: no pulse data found for '" + topic.join("/") + ":" + msg.payload + "'");
+                    }
+                } else if (msg.raw !== undefined && msg.raw.data !== undefined) {
+                    // No topic or no payload or neither: check for raw data in the message
+                    pulseTimes = msg.raw.pulseTimes;
+                    if (msg.raw.repeats !== undefined) {
+                        repeats = msg.raw.repeats;
+                    } else {
+                        repeats = 5;
+                    }
+                    if (topic === undefined) {
+                        topic = ["__none__"];
+                    }
+                }
+                if (pulseTimes !== null) {
+                     try {
+                        // Send the command for the first time
+                        let params = {pulseTimes: pulseTimes, repeats: repeats};
+                        node.rfxtrx.transmitters['RAW'].sendMessage(null, params);
+                        // If we reach this point, the command did not throw an error. Check if should retransmit
+                        // it & set the Timeout or Interval as appropriate
+                        if (node.retransmit !== "none") {
+                            // Wrap the parseCommand arguments, and the retransmission key (=topic) in a
+                            // function context, where the function lastCommand() can find them
+                            topic = topic.join("/");
+                            lastCommand = (function () {
+                                // let _rawData = rawData, _pulseWidth = repeats, key = topic;
+                                let _params = params, key = topic;
+                                return function () {
+                                    node.rfxtrx.transmitters['RAW'].sendMessage(null, _params);
+                                    if (node.mustDelete) {
+                                        delete(node.retransmissions[key]);
+                                    }
+                                };
+                            }());
+                            if (node.retransmissions.hasOwnProperty(topic)) {
+                                node.clearRetransmission(node.retransmissions[topic]);
+                            }
+                            node.retransmissions[topic] = node.setRetransmission(lastCommand, node.retransmitTime);
+
+                        }
+                    } catch (exception) {
+                        node.warn(exception.message);
+                    }
+                 }
+            });
+        }
+    } else {
+        node.error("missing config: rfxtrx-port");
+    }
+}
+
+RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
 
 // An input node for listening to messages from (mainly weather) sensors
     function RfxWeatherSensorNode(n) {

@@ -1841,3 +1841,267 @@ Supported device types are:
     });
 </script>
 
+<!-- This is a transmitter node for 'raw' RFXCOM devices -->
+<script type="text/x-red" data-template-name="rfx-raw-out">
+    <div class="form-row node-input-port">
+        <label for="node-input-port"><i class="fa fa-usb"></i> Serial Port</label>
+        <input type="text" id="node-input-port">
+    </div>
+    <div class="form-row node-input-topic">
+        <label for="node-input-topicSource"><i class="fa fa-envelope-o"></i> Address</label>
+        <select id="node-input-topicSource" style="width:73% !important">
+          <option value="msg">get address from message topic</option>
+          <option value="node">send all commands to the same address</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-topic">
+        <label for="node-input-topic"></label>
+        <input type="text" id="node-input-topic" placeholder="RAW/address">
+    </div>
+    <div class="form-row node-input-deviceList">
+        <label for="node-input-deviceList"><i class="fa fa-list"></i> Devices</label>
+        <input type="text" id="node-input-deviceList">
+    </div>
+    <div class="form-row node-input-retransmit">
+        <label for="node-input-retransmit"><i class="fa fa-refresh"></i> Repeat</label>
+        <select id="node-input-retransmit" style="width:73% !important">
+          <option value="none">send each command once only</option>
+          <option value="once">repeat each command after a delay</option>
+          <option value="repeat">repeat each command at regular intervals</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-input-row-retransmitInterval">
+        <label for="node-input-retransmitInterval"></label>
+        <span id="node-input-retransmitInterval-caption" style="width:10%; display:inline-block; margin-left: 8px; margin-right:12px;">Delay</span>
+        <input type="text" id="node-input-retransmitInterval" style="width:10%" placeholder="10">
+        <span id="node-input-retransmitInterval-units" style="display:inline-block; margin-left:6px;">seconds</span>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- Help text for rfx-raw-out -->
+<script type="text/x-red" data-help-name="rfx-raw-out">
+    <p>
+    Sends 'raw' format messages using an RFXtrx433 transceiver
+    <p>
+    Translates the message topic ('address') and payload to the required seqence of pulse times by looking for a matching entry in the
+    configured list of Devices. Alternatively, the same device address can be used for all messages. If no matching entry is
+    found, nothing is sent. If both topic and message payload are undefined, the pulse sequence specified by the 'raw.pulseTimes' property of
+    the message, if present, will be sent. A 'raw.repeats' property can optionally be used to set the number of repeats of the pulse
+    sequence in each transmission: if raw.repeats is not specified, the pulse sequence is repeated 5 times.
+    <p>
+    When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
+    must be unique. All addresses must start with 'RAW/'. The same list may be shared by multiple rfx-raw-out nodes,
+    or different nodes may use different lists.
+    <p>
+    <p>
+    To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most
+    recent message to each specific device address is retransmitted: the next message sent there will cancel any pending retransmissions.
+    </p>
+    Supported device types are:
+    <ul>
+    <li>Raw</li>
+    </ul>
+    </script>
+    
+<script type="text/javascript">
+    RED.nodes.registerType('rfx-raw-out', {
+        category: 'home automation',
+        defaults: {
+            name: {name:""},
+            port: {type:"rfxtrx-port", required:true},
+            deviceList: {type:'raw-device-list', required:true},
+            topicSource: {value:"msg", required:true},
+            retransmit: {value: "none"},
+            retransmitInterval: {value: 20,
+                validate:function (i) {return i >= 10}
+            },
+            topic: {value:"", validate:function (t) {
+                    return this.topicSource == "msg" || t.indexOf("RAW/") === 0
+                }
+            }
+        },
+        color:"BurlyWood",
+        inputs:1,
+        outputs:0,
+        icon: "rfxcom.png",
+        align: "right",
+        label: function() {
+            var rfxtrxNode = RED.nodes.node(this.rfxtrx);
+            return this.name || (rfxtrxNode ? rfxtrxNode.label() : "rfx-raw");
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function() {
+            var topicSource = $("#node-input-topicSource"),
+                retransmit = $("#node-input-retransmit");
+            retransmit.change(function () {
+                var mode = retransmit.find("option:selected").val();
+                if (mode === "none") {
+                    $("#node-input-row-retransmitInterval").hide();
+                } else {
+                    if (mode === "once") {
+                        $("#node-input-retransmitInterval-caption").text("Delay");
+                        $("#node-input-retransmitInterval-units").text("seconds");
+                    } else {
+                        $("#node-input-retransmitInterval-caption").text("Interval");
+                        $("#node-input-retransmitInterval-units").text("minutes");
+                    }
+                    $("#node-input-row-retransmitInterval").show();
+                }
+            });
+            retransmit.val(this.retransmit);
+            retransmit.change();
+            topicSource.change(function() {
+                var id = topicSource.find("option:selected").val();
+                if (id == "node") {
+                    $("#node-input-row-topic").show();
+                } else {
+                    $("#node-input-row-topic").hide();
+                }
+            });
+            topicSource.val(this.topicSource);
+            topicSource.change();
+        }
+    });
+</script>
+
+<!-- This is the config node holding deviceList data for Raw nodes -->
+<script type="text/x-red" data-template-name="raw-device-list">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <div style="padding: 5px; padding-left: 0px; border: 1px solid #fff; margin-bottom:-12px">
+            <span style="display:inline-block; margin-left:12px; width:40%;">Topic</span>
+            <span style="display:inline-block; margin-left:12px; width:20%;">Payload</span>
+            <span style="display:inline-block; margin-left:12px; width:12%; text-align:right;">Pulse Data</span>
+            <span style="display:inline-block; margin-left:15px; width:8%; text-align:right;">Repeats</span>
+        </div>
+    </div>
+    <div class="form-row">
+        <div id="node-config-list-container-div" style="border-radius: 5px; height: 240px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+            <ol id="node-config-list-container" style="list-style-type:none; margin: 0;">
+            </ol>
+        </div>
+    </div>
+    <div class="form-row">
+        <button class="red-ui-button" id="node-config-add-list-entry" style="margin-top: 4px;"><i class="fa fa-plus"></i> Add New Device</button>
+    </div>
+
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('raw-device-list', {
+        category: 'config',
+        defaults: {
+            name: { value:"", required:true },
+            devices: { value:[], required: true }
+        },
+        label: function () {
+            return this.name || 'Raw devices';
+        },
+        oneditprepare: function () {
+            function generateEntry(entry, insert) {
+                var container = $('<li/>', {style:"margin:0; padding:4px; padding-left:2px; padding-top:2px;"});
+                var row = $('<div/>').appendTo(container);
+                var entryField = $('<span/>').appendTo(row);
+                var deviceField = $('<input/>', { class:"node-config-device-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:42%;"}).appendTo(entryField);
+                var payloadField = $('<input/>', { class:"node-config-payload-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:28%;"}).appendTo(entryField);
+                var pulseTimesField = $('<input/>', { class:"node-config-pulse-data-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:12%; text-align:right;"}).appendTo(entryField);
+                var repeatsField = $('<input/>', { class:"node-config-repeats-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:8%; text-align:right;"}).appendTo(entryField);
+                var deleteButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin-left: 5px;"}).appendTo(row);
+                    $('<i/>', {class:"fa fa-trash"}).appendTo(deleteButton);
+                    deleteButton.click(function() {
+                        container.css({"background":"#fee"});
+                        container.fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                    });
+                    deviceField.val(entry.device.join("/"));
+                    payloadField.val(entry.payload);
+                    pulseTimesField.val("[" + entry.pulseTimes[0] + ", " + entry.pulseTimes[1] + "...]");
+                    repeatsField.val(entry.repeats);
+                    $("#node-config-list-container").append(container);
+                }
+
+                $("#node-config-add-list-entry").click(function () {
+                    generateEntry({ device:["RAW"], payload:"", pulseTimes:[], repeats:5 });
+                    $("#node-config-list-container-div").scrollTop($("#node-config-list-container-div").get(0).scrollHeight);
+                });
+
+                if ( this.devices !== undefined ) {
+                    for (var i = 0; i < this.devices.length; i++) {
+                        var entry = this.devices[i];
+                        generateEntry(entry);
+                    }
+                }
+            },
+            oneditsave: function () {
+                // Convert a string containing a slash/delimited/path to an Array of (string) parts, removing any empty components
+                // Return value may be zero-length
+                var stringToParts = function (str) {
+                    if (typeof str === "string") {
+                        return str.split('/').filter(function (part) {
+                            return part !== "";
+                        });
+                    } else {
+                        return [];
+                    }
+                };
+
+                var entries = $("#node-config-list-container").children();
+                var node = this;
+                node.devices = [];
+                entries.each(function (i) {
+                    var entry = $(this);
+                    var row = {};
+                    row.device = stringToParts(entry.find(".node-config-device-input-value").val());
+                    row.payload = entry.find(".node-config-payload-input-value").val();
+                    //row.pulseTimes = "0x" + parseInt(entry.find(".node-config-pulse-data-input-value").val()).toString(16);
+                    row.repeats = Number(entry.find(".node-config-repeats-input-value").val());
+                    node.devices.push(row);
+                });
+
+                var compareEntries = function (a, b) {
+                    var idx, result;
+                    for (idx = 0; idx < Math.min(a.device.length, b.device.length); idx++) {
+                        if (a.device[idx] < b.device[idx]) {
+                            return -1;
+                        } else if (a.device[idx] > b.device[idx]) {
+                            return 1;
+                        }
+                    }
+                    if (a.device.length < b.device.length) {
+                        return -1;
+                    } else if (a.device.length > b.device.length) {
+                        return 1;
+                    } else if (a.payload < b.payload) {
+                        return -1;
+                    } else if (a.payload > b.payload) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                };
+
+                node.devices = node.devices.sort(compareEntries).filter(function (item, idx, entry) {
+                    if (idx > 0) {
+                        return compareEntries(item, entry[idx-1]) !== 0;
+                    } else {
+                        return true;
+                    }
+                });
+            }
+        });
+    </script>
+
