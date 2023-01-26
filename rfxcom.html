@@ -1991,6 +1991,10 @@ Supported device types are:
         </div>
     </div>
     <div class="form-row">
+        <div id="editor-div" style="border-radius: 5px; height: 320px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+        </div>
+    </div>
+    <div class="form-row">
         <button class="red-ui-button" id="node-config-add-list-entry" style="margin-top: 4px;"><i class="fa fa-plus"></i> Add New Device</button>
     </div>
 
@@ -2006,6 +2010,9 @@ Supported device types are:
         label: function () {
             return this.name || 'Raw devices';
         },
+        showPulseEditor: function () {
+
+        },
         oneditprepare: function () {
             var node = this;
             function generateEntry(entry, insert) {
@@ -2016,24 +2023,15 @@ Supported device types are:
                     style:"margin-left:2px; margin-right:2px; width:40%;"}).appendTo(entryField);
                 var payloadField = $('<input/>', { class:"node-config-payload-input-value", type:"text",
                     style:"margin-left:2px; margin-right:2px; width:20%;"}).appendTo(entryField);
-                var pulseTimesField = $('<input/>', { class:"node-config-pulse-data-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:15%; text-align:right;"}).appendTo(entryField);
+                var pulseTimesField = $('<input/>', { class:"node-config-pulse-data-input-value", type:"text", disabled:true,
+                    style:"margin-left:2px; margin-right:0px; width:15%; text-align:right;"}).appendTo(entryField);
                 var editButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin-left: 0px;"}).appendTo(entryField);
                     $('<i/>', {class:"fa fa-pencil"}).appendTo(editButton);
-                    editButton.click(function() {
-                        $("#editor-div").toggle();
-                        if ($("#editor-div").is(":visible")) {
-                            alert("Editor visible");
-                            node.editor = RED.editor.createEditor({
-                                id: 'node-config-edit-pulses',
-                                mode: 'ace/mode/text',
-                                value: "Hello, world!"
-                                });
-                        } else {
-                            alert("Editor hidden");
-                            node.editor.destroy();
-                            delete node.editor;
-                        }
+                    editButton.click(function(row) {
+                        node.rowBeingEdited = $(this).parent();
+                        node.showEditor(true);
+                        node.editor.setValue($(this).siblings('.node-config-pulse-data-input-value').val());
+                        node.editor.setOptions({useWrapMode: true});
                     });
                 var repeatsField = $('<input/>', {class:"node-config-repeats-input-value", type:"text",
                     style:"margin-left:2px; margin-right:2px; width:5%; text-align:right;"}).appendTo(entryField);
@@ -2045,33 +2043,53 @@ Supported device types are:
                             $(this).remove();
                         });
                     });
-                // I think we need to move the editorDiv to come just after the row being edited, each time
-                var editorDiv = $('<div/>', {id:"editor-div", style:"margin-top:5px;"}).hide().appendTo(row);
-                var pulseEditor = $('<div/>', {id:"node-config-edit-pulses", class:"node-text-editor", style:"height:240px; min-height:150px;"}).appendTo(editorDiv);
-                var editButtonsRow = $('<div/>', {align:"right"}).appendTo(editorDiv);
-                var editCancelButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px;", text:"Cancel"}).appendTo(editButtonsRow);
-                var editOKButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px", text:"OK"}).appendTo(editButtonsRow);
-
                     deviceField.val(entry.device.join("/"));
                     payloadField.val(entry.payload);
-                    pulseTimesField.val("[" + entry.pulseTimes[0] + ", " + entry.pulseTimes[1] + "...]");
+                    pulseTimesField.val(entry.pulseTimes.toString());
                     repeatsField.val(entry.repeats);
                     $("#node-config-list-container").append(container);
-                }
+            };
 
-                $("#node-config-add-list-entry").click(function () {
-                    generateEntry({ device:["RAW"], payload:"", pulseTimes:[], repeats:5 });
-                    $("#node-config-list-container-div").scrollTop($("#node-config-list-container-div").get(0).scrollHeight);
-                });
+            $("#node-config-add-list-entry").click(function () {
+                generateEntry({ device:["RAW"], payload:"", pulseTimes:[], repeats:5 });
+                $("#node-config-list-container-div").scrollTop($("#node-config-list-container-div").get(0).scrollHeight);
+            });
 
-                if ( this.devices !== undefined ) {
-                    for (var i = 0; i < this.devices.length; i++) {
-                        var entry = this.devices[i];
-                        generateEntry(entry);
-                    }
+            var pulseEditor = $('<div/>', {id:"node-config-edit-pulses", class:"node-text-editor", style:"height:240px; min-height:150px;"}).appendTo($('#editor-div'));
+            var editButtonsRow = $('<div/>', {align:"right"}).appendTo($('#editor-div'));
+            var editCancelButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px;", text:"Cancel"}).appendTo(editButtonsRow);
+            var editOKButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px", text:"OK"}).appendTo(editButtonsRow);
+            node.editor = RED.editor.createEditor({
+                        id: 'node-config-edit-pulses',
+                        mode: 'ace/mode/text',
+                        value: "Hello, world!"
+                        });
+            // node.editor.session.setUseWrapMode(true);
+            // node.editor.renderer.setShowGutter(false);
+            $('#editor-div').hide();
+
+            node.showEditor = function (visible) {
+                if (visible) {
+                    $('#editor-div').show();
+                    $('#node-config-list-container-div').hide();
+                } else {
+                    $('#editor-div').hide();
+                    $('#node-config-list-container-div').show();
                 }
-            },
-            oneditsave: function () {
+            }
+            editCancelButton.click(function () { node.showEditor(false) });
+            editOKButton.click(function () {
+                node.rowBeingEdited.children('.node-config-pulse-data-input-value').val(node.editor.getValue());
+                node.showEditor(false) 
+            });
+            if ( this.devices !== undefined ) {
+                for (var i = 0; i < this.devices.length; i++) {
+                    var entry = this.devices[i];
+                    generateEntry(entry);
+                }
+            }
+        },
+        oneditsave: function () {
                 // Convert a string containing a slash/delimited/path to an Array of (string) parts, removing any empty components
                 // Return value may be zero-length
                 var stringToParts = function (str) {
@@ -2092,7 +2110,7 @@ Supported device types are:
                     var row = {};
                     row.device = stringToParts(entry.find(".node-config-device-input-value").val());
                     row.payload = entry.find(".node-config-payload-input-value").val();
-                    //row.pulseTimes = "0x" + parseInt(entry.find(".node-config-pulse-data-input-value").val()).toString(16);
+                    row.pulseTimes = entry.find(".node-config-pulse-data-input-value").val();
                     row.repeats = Number(entry.find(".node-config-repeats-input-value").val());
                     node.devices.push(row);
                 });
@@ -2126,6 +2144,8 @@ Supported device types are:
                         return true;
                     }
                 });
+                node.editor.destroy();
+                delete node.editor;
             }
         });
     </script>
