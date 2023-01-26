@@ -1980,12 +1980,12 @@ Supported device types are:
         <div style="padding: 5px; padding-left: 0px; border: 1px solid #fff; margin-bottom:-12px">
             <span style="display:inline-block; margin-left:12px; width:40%;">Topic</span>
             <span style="display:inline-block; margin-left:12px; width:20%;">Payload</span>
-            <span style="display:inline-block; margin-left:12px; width:12%; text-align:right;">Pulse Data</span>
+            <span style="display:inline-block; margin-left:12px; width:15%; text-align:left;">Pulse Data</span>
             <span style="display:inline-block; margin-left:15px; width:8%; text-align:right;">Repeats</span>
         </div>
     </div>
     <div class="form-row">
-        <div id="node-config-list-container-div" style="border-radius: 5px; height: 240px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+        <div id="node-config-list-container-div" style="border-radius: 5px; height: 320px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
             <ol id="node-config-list-container" style="list-style-type:none; margin: 0;">
             </ol>
         </div>
@@ -2007,18 +2007,36 @@ Supported device types are:
             return this.name || 'Raw devices';
         },
         oneditprepare: function () {
+            var node = this;
             function generateEntry(entry, insert) {
                 var container = $('<li/>', {style:"margin:0; padding:4px; padding-left:2px; padding-top:2px;"});
                 var row = $('<div/>').appendTo(container);
                 var entryField = $('<span/>').appendTo(row);
                 var deviceField = $('<input/>', { class:"node-config-device-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:42%;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:40%;"}).appendTo(entryField);
                 var payloadField = $('<input/>', { class:"node-config-payload-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:28%;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:20%;"}).appendTo(entryField);
                 var pulseTimesField = $('<input/>', { class:"node-config-pulse-data-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:12%; text-align:right;"}).appendTo(entryField);
-                var repeatsField = $('<input/>', { class:"node-config-repeats-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:8%; text-align:right;"}).appendTo(entryField);
+                    style:"margin-left:2px; margin-right:2px; width:15%; text-align:right;"}).appendTo(entryField);
+                var editButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin-left: 0px;"}).appendTo(entryField);
+                    $('<i/>', {class:"fa fa-pencil"}).appendTo(editButton);
+                    editButton.click(function() {
+                        $("#editor-div").toggle();
+                        if ($("#editor-div").is(":visible")) {
+                            alert("Editor visible");
+                            node.editor = RED.editor.createEditor({
+                                id: 'node-config-edit-pulses',
+                                mode: 'ace/mode/text',
+                                value: "Hello, world!"
+                                });
+                        } else {
+                            alert("Editor hidden");
+                            node.editor.destroy();
+                            delete node.editor;
+                        }
+                    });
+                var repeatsField = $('<input/>', {class:"node-config-repeats-input-value", type:"text",
+                    style:"margin-left:2px; margin-right:2px; width:5%; text-align:right;"}).appendTo(entryField);
                 var deleteButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin-left: 5px;"}).appendTo(row);
                     $('<i/>', {class:"fa fa-trash"}).appendTo(deleteButton);
                     deleteButton.click(function() {
@@ -2027,6 +2045,13 @@ Supported device types are:
                             $(this).remove();
                         });
                     });
+                // I think we need to move the editorDiv to come just after the row being edited, each time
+                var editorDiv = $('<div/>', {id:"editor-div", style:"margin-top:5px;"}).hide().appendTo(row);
+                var pulseEditor = $('<div/>', {id:"node-config-edit-pulses", class:"node-text-editor", style:"height:240px; min-height:150px;"}).appendTo(editorDiv);
+                var editButtonsRow = $('<div/>', {align:"right"}).appendTo(editorDiv);
+                var editCancelButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px;", text:"Cancel"}).appendTo(editButtonsRow);
+                var editOKButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px", text:"OK"}).appendTo(editButtonsRow);
+
                     deviceField.val(entry.device.join("/"));
                     payloadField.val(entry.payload);
                     pulseTimesField.val("[" + entry.pulseTimes[0] + ", " + entry.pulseTimes[1] + "...]");
