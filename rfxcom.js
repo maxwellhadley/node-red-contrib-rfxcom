@@ -2593,8 +2593,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         return;
                     }
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
-                    if (protocolName === "BLINDS_T2" || protocolName === "BLINDS_T4" || protocolName === "BLINDS_T5" ||
-                        protocolName === "BLINDS_T10" || protocolName === "BLINDS_T11") {
+                    if (protocolName === "BLINDS_T2" || protocolName === "BLINDS_T4" ||
+                        protocolName === "BLINDS_T5" || protocolName === "BLINDS_T10") {
                         unitAddress = 0;
                         if (path.length > 2) {
                             node.warn((node.name || "rfx-blinds-out") + ": ignoring unit code");
@@ -2621,7 +2621,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     }
                     deviceAddress = path.slice(1, 2);
                     try {
-                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting5", "curtain1", "blinds1", "rfy"],
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["blinds1", "blinds2", "curtain1", "lighting5", "rfy"],
                                                                      {venetianBlindsMode: node.rfyVenetianMode});
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-blinds-out ") + ": device type '" + protocolName + "' is not supported");

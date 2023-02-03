@@ -660,7 +660,7 @@ device address can be used for all messages.
 Addresses take the form '<b>type</b>/<b>device address</b>/<b>unit address</b>', where <b>type</b> is the name of the
 family of devices (see RFXCOM documentation), <b>device address</b> is the address of the remote device, and <b>unit
 address</b> is the unit or channel number of the addressed device. Channel 0 or '+' is used for group control
-(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10, BLINDS_T11  &amp;
+(or the equivalent) where supported. Devices of families BLINDS_T2, BLINDS_T4, BLINDS_T5, BLINDS_T10 &amp;
 BLINDS_T18 do not have unit addresses.
 </p>
 <p>
@@ -685,7 +685,7 @@ dialog, and applies to <i>all</i> motors used with the transceiver on that seria
 </p>
 Supported device types are:
 <ul>
-<li>ASA</li><li>BLINDS_T0 to BLINDS_T18</li><li>GEOM</li><li>HARRISON</li><li>LIGHTWAVERF</li><li>RFY</li><li>RFYEXT</li>
+<li>ASA</li><li>BLINDS_T0 to BLINDS_T20</li><li>BREL_DOOYA</li><li>GEOM</li><li>HARRISON</li><li>LIGHTWAVERF</li><li>RFY</li><li>RFYEXT</li>
 </ul>
 </script>
 
@@ -1893,6 +1893,11 @@ Supported device types are:
     the message, if present, will be sent. A 'raw.repeats' property can optionally be used to set the number of repeats of the pulse
     sequence in each transmission: if raw.repeats is not specified, the pulse sequence is repeated 5 times.
     <p>
+    When editing the Device list, click the edit (pencil) button to enter the pulse times as a list of integers (in the range 1 to 65535). Alternate numbers
+    are the carrier on &amp; off times in microseconds. Numbers can be separated by commas, spaces, tabs, or newlines. The format generated
+    by RFXmgr is compatible and can be copied & pasted into the editor. There is no need to split the pulse times into multiple messages,
+    the node will do this automatically using the entered data.
+    <p>
     When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
     must be unique. All addresses must start with 'RAW/'. The same list may be shared by multiple rfx-raw-out nodes,
     or different nodes may use different lists.
@@ -1903,7 +1908,7 @@ Supported device types are:
     </p>
     Supported device types are:
     <ul>
-    <li>Raw</li>
+    <li>RAW</li>
     </ul>
     </script>
     
@@ -1978,10 +1983,10 @@ Supported device types are:
     </div>
     <div class="form-row">
         <div style="padding: 5px; padding-left: 0px; border: 1px solid #fff; margin-bottom:-12px">
-            <span style="display:inline-block; margin-left:12px; width:40%;">Topic</span>
-            <span style="display:inline-block; margin-left:12px; width:20%;">Payload</span>
-            <span style="display:inline-block; margin-left:12px; width:15%; text-align:left;">Pulse Data</span>
-            <span style="display:inline-block; margin-left:15px; width:8%; text-align:right;">Repeats</span>
+            <span style="display:inline-block; margin-left:2px; width:39%;">Topic</span>
+            <span style="display:inline-block; margin-left:6px; width:19%;">Payload</span>
+            <span style="display:inline-block; margin-left:6px; width:16%; text-align:left;">Pulse Data</span>
+            <span style="display:inline-block; margin-left:2px; width:8%; text-align:right;">Repeats</span>
         </div>
     </div>
     <div class="form-row">
@@ -1991,7 +1996,13 @@ Supported device types are:
         </div>
     </div>
     <div class="form-row">
-        <div id="editor-div" style="border-radius: 5px; height: 320px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+        <div id="editor-div" style="border-radius: 5px; height: 268px; padding: 5px; padding-left: 0px; border: 1px solid #ccc; overflow-y:scroll;">
+            <div id="node-config-edit-pulses" class="node-text-editor" style="height:216px; min-height:132px;">
+            </div>
+            <div id="edit-buttons-row" align="right">
+                <button id="edit-cancel-button" class="red-ui-button" style="margin:5px;">Cancel</button>
+                <button id="edit-ok-button" class="red-ui-button" style="margin:5px;">OK</button>
+            </div>
         </div>
     </div>
     <div class="form-row">
@@ -2009,9 +2020,6 @@ Supported device types are:
         },
         label: function () {
             return this.name || 'Raw devices';
-        },
-        showPulseEditor: function () {
-
         },
         oneditprepare: function () {
             var node = this;
@@ -2034,8 +2042,8 @@ Supported device types are:
                         node.editor.setOptions({useWrapMode: true});
                     });
                 var repeatsField = $('<input/>', {class:"node-config-repeats-input-value", type:"text",
-                    style:"margin-left:2px; margin-right:2px; width:5%; text-align:right;"}).appendTo(entryField);
-                var deleteButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin-left: 5px;"}).appendTo(row);
+                    style:"margin-left:2px; margin-right:2px; width:8%; text-align:right;"}).appendTo(entryField);
+                var deleteButton = $('<button>', {type:"button", id:"delete-button", class:"red-ui-button", style:"margin-left: 5px;"}).appendTo(row);
                     $('<i/>', {class:"fa fa-trash"}).appendTo(deleteButton);
                     deleteButton.click(function() {
                         container.css({"background":"#fee"});
@@ -2055,32 +2063,45 @@ Supported device types are:
                 $("#node-config-list-container-div").scrollTop($("#node-config-list-container-div").get(0).scrollHeight);
             });
 
-            var pulseEditor = $('<div/>', {id:"node-config-edit-pulses", class:"node-text-editor", style:"height:240px; min-height:150px;"}).appendTo($('#editor-div'));
-            var editButtonsRow = $('<div/>', {align:"right"}).appendTo($('#editor-div'));
-            var editCancelButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px;", text:"Cancel"}).appendTo(editButtonsRow);
-            var editOKButton = $('<button>', {type:"button", class:"red-ui-button", style:"margin:5px", text:"OK"}).appendTo(editButtonsRow);
-            node.editor = RED.editor.createEditor({
-                        id: 'node-config-edit-pulses',
-                        mode: 'ace/mode/text',
-                        value: "Hello, world!"
-                        });
-            // node.editor.session.setUseWrapMode(true);
-            // node.editor.renderer.setShowGutter(false);
-            $('#editor-div').hide();
-
-            node.showEditor = function (visible) {
-                if (visible) {
-                    $('#editor-div').show();
-                    $('#node-config-list-container-div').hide();
-                } else {
-                    $('#editor-div').hide();
-                    $('#node-config-list-container-div').show();
+            node.showEditor = function (makeVisible) {
+                if (node.rowBeingEdited != null) {
+                    if (makeVisible) {
+                        node.rowBeingEdited.parent().parent().siblings().hide();
+                        node.rowBeingEdited.children().attr("disabled", true);
+                        node.rowBeingEdited.parent().children('#delete-button').attr("disabled", true);
+                        $('#editor-div').show().appendTo(node.rowBeingEdited.parent().parent()).attr("disabled", false);
+                    } else {
+                        node.rowBeingEdited.parent().parent().siblings().show();
+                        node.rowBeingEdited.children().attr("disabled", false);
+                        node.rowBeingEdited.children('.node-config-pulse-data-input-value').attr("disabled", true);
+                        node.rowBeingEdited.parent().children('#delete-button').attr("disabled", false);
+                        $('#editor-div').hide().appendTo('#node-config-list-container-div');
+                        node.rowBeingEdited = null;
+                    }
                 }
             }
-            editCancelButton.click(function () { node.showEditor(false) });
-            editOKButton.click(function () {
-                node.rowBeingEdited.children('.node-config-pulse-data-input-value').val(node.editor.getValue());
-                node.showEditor(false) 
+            $("#edit-cancel-button").click(function () { node.showEditor(false) });
+            $("#edit-ok-button").click(function () {
+                if (node.rowBeingEdited != null) {
+                    let str = node.editor.getValue().trim();
+                    if (str.search(/[^0-9 ,\t\r\n]/) != -1) {
+                        alert("Pulse times must be entered as positive decimal integers");
+                    } else {
+                        let arr = str.split(/[ ,\t\r\n]+/).map(function(s) {return parseInt(s)});
+                        if (arr.some(function(x) {return isNaN(x)})) {
+                            alert("All pulse time data must be numeric");
+                        } else if (arr.length > 496 || arr.length < 2) {
+                            alert("Number of pulse times must be in the range 2 to 496");
+                        } else if (arr.length % 2 != 0) {
+                            alert("Number of pulse times must be even");
+                        } else if (arr.some(function(x) {return x <= 0 || x >= 65536})) {
+                            alert("Pulse times must be in the range 1 to 65535");
+                        } else {
+                            node.rowBeingEdited.children('.node-config-pulse-data-input-value').val(node.editor.getValue());
+                            node.showEditor(false);
+                        }
+                    }
+                }
             });
             if ( this.devices !== undefined ) {
                 for (var i = 0; i < this.devices.length; i++) {
@@ -2088,6 +2109,15 @@ Supported device types are:
                     generateEntry(entry);
                 }
             }
+            node.rowBeingEdited = null;
+            node.editor = RED.editor.createEditor({
+                        id: 'node-config-edit-pulses',
+                        mode: 'ace/mode/text',
+                        value: ""
+                        });
+            node.editor.updateOptions({wordWrap: "on", lineNumbers: false, minimap: {enabled: false}});
+            $('#editor-div').hide();
+
         },
         oneditsave: function () {
                 // Convert a string containing a slash/delimited/path to an Array of (string) parts, removing any empty components
@@ -2104,6 +2134,10 @@ Supported device types are:
 
                 var entries = $("#node-config-list-container").children();
                 var node = this;
+                // If the pulse times editor is open, behave as if the OK button has been clicked
+                if (node.rowBeingEdited != null) {
+                    node.rowBeingEdited.children('.node-config-pulse-data-input-value').val(node.editor.getValue());
+                }
                 node.devices = [];
                 entries.each(function (i) {
                     var entry = $(this);

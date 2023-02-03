@@ -7,7 +7,7 @@
     "email": "max@zepler.org"
   },
   "engines": {
-    "node": ">=10.4.0"
+    "node": ">=14.21.2"
   },
   "repository": {
     "type": "git",
@@ -25,6 +25,6 @@
     }
   },
   "dependencies": {
-    "rfxcom": ">=2.3.1"
+    "rfxcom": ">=2.5.0"
   }
 }
