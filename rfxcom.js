@@ -2443,7 +2443,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.blinds1[evt.subtype] || "BLINDS_UNKNOWN") + "/" + evt.id;
             if (evt.subtype !== 2 && evt.subtype !== 4 && evt.subtype !== 5 &&
-                evt.subtype !== 10 && evt.subtype !== 11 && evt.subtype !== 18) {
+                evt.subtype !== 10 && evt.subtype !== 18) {
                 msg.topic = msg.topic + "/" + evt.unitCode;
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
