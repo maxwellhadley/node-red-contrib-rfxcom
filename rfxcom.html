@@ -59,8 +59,8 @@ Select the Somfy venetian blind command mode to be used by all rfx-blinds-out no
         category: 'config',
         defaults: {
             port: { value: "", required: true },
-            enableDebug: {value: false, required: true },
-            rfyVenetianMode: {value: "EU", required: true}
+            enableDebug: { value: false, required: true },
+            rfyVenetianMode: { value: "EU", required: true }
         },
         label: function () {
             return this.port;
@@ -1645,6 +1645,11 @@ rfx-PT2262-out nodes, or different nodes may use different lists.
         <label for="node-input-deviceList"><i class="fa fa-list"></i> Devices</label>
         <input type="text" id="node-input-deviceList">
     </div>
+    <div class="form-row node-input-row-ignoreUnmatched">
+        <label for="node-input-ignoreUnmatched">&nbsp;</label>
+        <input type="checkbox" id="node-input-ignoreUnmatched" style="display:inline-block; width:15px; vertical-align:baseline;">
+        <span>Ignore messages from unknown devices</span>
+    </div>
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -1679,6 +1684,7 @@ template. This takes place using the topic found in the device list as the messa
             name: { name:"" },
             port: { type:"rfxtrx-port", required:true },
             deviceList: { type:'PT2262-device-list', required:true },
+            ignoreUnmatched: { value: false, required: true },
             topicSource: { value:"all", required:true },
             topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.indexOf("PT2262/") === 0
