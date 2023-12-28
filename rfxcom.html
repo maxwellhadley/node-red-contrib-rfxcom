@@ -85,6 +85,14 @@ Select the Somfy venetian blind command mode to be used by all rfx-blinds-out no
         <label for="node-input-topic"></label>
         <input type="text" id="node-input-topic" placeholder="protocol/device address">
     </div>
+    <div class="form-row node-input-payload-format">
+        <label for="node-input-payloadFormat"><i class="fa fa-font"></i> Payload</label>
+        <select id="node-input-payloadFormat" style="width:70% !important">
+          <option value="TITLE_CASE">format payload text in Title Case</option>
+          <option value="UPPER_CASE">format payload text in UPPER CASE</option>
+          <option value="LOWER_CASE">format payload text in lower case</option>
+        </select>
+    </div>
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -115,6 +123,8 @@ matching a topic template. For example, the address above would be matched by 'B
 <p>
 Typical commands are 'On' & 'Off' (or equivalently 1 & 0); 'Bright' or 'Dim+' to increase brightness; 'Dim' or 'Dim-' to
 reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value between 0 and 1) to set the brightness to a given level.
+For optimum compatibility with other nodes, the payload text can be formatted in <i>Title Case</i>, <i>UPPER CASE</i>
+or <i>lower case</i>.
 </p>
 </script>
 
@@ -128,7 +138,8 @@ reduce brightness, or 'level <i>number</i>' (where <i>number</i> is a value betw
             topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.length > 0
                 }
-            }
+            },
+            payloadFormat: {value: "TITLE_CASE", required:true}
         },
         color:"BurlyWood",
         inputs:0,
@@ -215,8 +226,9 @@ an X10 light switch with house code D and unit code 1.
 <p>
 Typical commands are 'On' & 'Off' (or equivalently 1 & 0, or <b>true</b> & <b>false</b>); 'Bright' or 'Dim+' to increase
 brightness; 'Dim' or 'Dim-' to reduce brightness; 'level <i>percentage</i>%' or 'level <i>number</i>' (where <i>number</i>
-is a value between 0 and 1) to set the brightness. Not all devices support all commands. Less common commands include
-'Toggle' and 'Mood <i>number</i>'. Command messages from an alexa home node are also accepted.
+is a value between 0 and 1) to set the brightness. Less common commands include
+'Toggle' and 'Mood <i>number</i>'. Command strings are not case sensitive. Command messages from an alexa home node are also accepted.
+Not all devices support all commands.
 </p>
 <p>
 To improve reliability, each message may be retransmitted, either once or at regular intervals. Only the most
@@ -1291,6 +1303,14 @@ Supported device types are:
         <input type="checkbox" id="node-input-outputHeartbeats" style="display:inline-block; width:15px; vertical-align:baseline;">
         <span>Output detector heartbeat messages</span>
     </div>
+    <div class="form-row node-input-payload-format">
+        <label for="node-input-payloadFormat"><i class="fa fa-font"></i> Payload</label>
+        <select id="node-input-payloadFormat" style="width:70% !important">
+          <option value="TITLE_CASE">format payload text in Title Case</option>
+          <option value="UPPER_CASE">format payload text in UPPER CASE</option>
+          <option value="LOWER_CASE">format payload text in lower case</option>
+        </select>
+    </div>
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -1321,6 +1341,9 @@ from the same device.
 </li>
 </ul>
 <p>
+For optimum compatibility with other nodes, the payload text can be formatted in <i>Title Case</i>, <i>UPPER CASE</i>
+or <i>lower case</i>.
+<p>
 The node can also receive the basic commands from X10 security remote controls: Arm (home/away, with or without delay) & Disarm, and
 Panic & End Panic. (The light control commands are received by the <b>rfx-lights-in</b> node)
 <p>
@@ -1345,7 +1368,8 @@ or loss of property, or protection from risk of injury or death, may depend on i
                     return this.topicSource == "all" || t.length > 0
                 }
             },
-            outputHeartbeats: {value: false, required:true}
+            outputHeartbeats: {value: false, required:true},
+            payloadFormat: {value: "TITLE_CASE", required:true}
         },
         color:"BurlyWood",
         inputs:0,
@@ -1509,7 +1533,7 @@ must be unique (duplicates are deleted when you <b>Update</b> the list). Althoug
 you should keep to the /-delimited format for the <i>Topic</i>, and it is a good idea to always start with 'PT2262/'.
 </p>
 <p>
-You can add as many entries as you want with the <b>Add New Device</b> button, or delete existing entries with the <b>x</b>
+You can add as many entries as you want with the <b>Add New Device</b> button, or delete existing entries with the delete (bin)
 button on each row. The same list may be shared by multiple rfx-PT2262-in and
 rfx-PT2262-out nodes, or different nodes may use different lists.
 </p>
@@ -1674,10 +1698,12 @@ rfx-PT2262-out nodes, or different nodes may use different lists.
 <p>
 Listens for messages from PT2262 devices using an RFXtrx433 transceiver
 <p>
-Translates the received raw data to a message topic (corresponding to a device address) and payload as specified by a
-matching entry the configured list of Devices. If no matching entry is found, the received data & pulse width are
-provided in the 'raw' property of the message; if multiple matches are found, the first in the list will be used to set
-the topic & payload. The message also has a 'status' property indicating the received the signal strength (rssi).
+Attempts to translate the received raw data to a message topic (corresponding to a device address) and payload as
+specified by a matching entry the configured list of Devices. If no matching entry is found, and "Ignore messages
+from unknown devices" is not checked, the received data & pulse width are provided in the 'raw' property of the
+message, which will have no topic or payload.
+If multiple matches are found, the first in the list will be used to set the topic & payload.
+The message also has a 'status' property indicating the received the signal strength (rssi).
 <p>
 When creating a device list, the address (topic) and payload may be assigned arbitrarily, but the combination of the two
 must be unique. All addresses must start with 'PT2262/'. The same list may be shared by multiple rfx-PT2262-in and
@@ -1688,6 +1714,9 @@ template. This takes place using the topic found in the device list as the messa
 0x555533 corresponds to topic 'PT2262/Remote/1 & payload '2', a message will be output if the address pattern is
 'PT2262', 'PT2262/Remote' or 'PT2262/Remote/1'.
 <p>
+Additionally, messages can be ignored if the signal level (RSSI) is below a threshold value. This can be useful
+in 'busy' RF areas - many cheap wireless intruder alarms use a message format which is received as PT2262 and
+seem to transmit all the time!
 </script>
 
 <script type="text/javascript">
@@ -2031,6 +2060,34 @@ Supported device types are:
 
 </script>
 
+<!-- Help text for rfx-raw-out -->
+<script type="text/x-red" data-help-name="raw-device-list">
+    <p>
+    The entries in a Device List match a user-defined message <i>Topic</i> and <i>Payload</i> to a sequence of
+    RF carrier pulses with specified on &amp; off times to be transmitted by the RFXtrx433.
+    <p>
+    When an rfx-raw node receives a message, it scans the list looking for an entry with matching <i>Topic</i> and
+    <i>Payload</i>. If it finds one, it tells the RFXtrx433 to send a radio transmission with the corresponding
+    pulse timing pattern.
+    <p>
+    Within a device list, the <i>Topic</i> and <i>Payload</i> may be assigned arbitrarily, but the combination of
+    the two must be unique (duplicates are deleted when you Update the list). Although the actual text of each is
+    arbitrary, you should keep to the /-delimited format for the Topic, and it is a good idea to always start with 'RAW/'.
+    <p>
+    You can add as many entries as you want with the Add New Device button, or delete existing entries with the delete (bin)
+    button on each row. The same list may be shared by multiple rfx-raw nodes, or different nodes may use different lists.
+    <p>
+    Click the edit (pencil) button on a row to enter the pulse times as a list of integers (in the range 1 to 65535).
+    Alternate numbers are the carrier on &amp; off times in microseconds. Numbers can be separated by commas, spaces, tabs,
+    or newlines. The format generated by RFXmgr is compatible and can be copied & pasted directly into the editor.
+    There is no need to split the pulse times into multiple messages, the node will do this automatically using the entered data.
+    <p>
+    You can (and normally should) specify a number of Repeats - typically 5 - of the pulse pattern to be transmitted
+    one after another without additional gaps by the RFXtrx433. Most RF device receivers expect this - it allows time for the receiver
+    AGC to operate. This is <b>not</b> the same as the Repeat setting of the rfx-raw node: those repeats take place after a delay, usually
+    very much longer (minutes) than the duration of the pulse pattern (milliseconds). Both are useful.
+</script>
+    
 <script type="text/javascript">
     RED.nodes.registerType('raw-device-list', {
         category: 'config',

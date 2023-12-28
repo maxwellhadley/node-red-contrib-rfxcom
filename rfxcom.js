@@ -298,10 +298,21 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.port = n.port;
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = function (msg) {
+            if (typeof msg.payload === "string") {
+                if (node.payloadFormat === "UPPER_CASE") {
+                    msg.payload = msg.payload.toUpperCase();
+                } else if (node.payloadFormat === "LOWER_CASE") {
+                    msg.payload = msg.payload.toLowerCase()
+                }
+            }
+            node.send(msg);
+        };
         this.lighting1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.lighting1[evt.subtype] || "LIGHTING1_UNKNOWN") + "/" + evt.houseCode;
@@ -337,7 +348,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting1 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting2Handler = function (evt) {
@@ -369,7 +380,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting2 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting5Handler = function (evt) {
@@ -476,7 +487,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                     default:
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting6Handler = function (evt) {
@@ -503,7 +514,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting6 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.security1Handler = function (evt) {
@@ -536,7 +547,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
                 }
                 if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                    node.send(msg);
+                    node.sendFormatted(msg);
                 }
             }
         };
@@ -554,7 +565,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
                 }
                 if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                    node.send(msg);
+                    node.sendFormatted(msg);
                 }
             }
         };
@@ -579,7 +590,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         if (node.rfxtrxPort) {
@@ -1178,6 +1189,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
         this.outputHeartbeats = n.outputHeartbeats || false;
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
@@ -1289,6 +1301,11 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                                         lastMessageTimestamp: Date.now(),
                                         lastHeardFrom:        new Date().toUTCString()
                                     };
+                                    if (node.payloadFormat === "UPPER_CASE") {
+                                        heartbeatStoppedMsg.payload = heartbeatStoppedMsg.payload.toUpperCase();
+                                    } else if (node.payloadFormat === "LOWER_CASE") {
+                                        heartbeatStoppedMsg.payload = heartbeatStoppedMsg.payload.toLowerCase()
+                                    }
                                     return setInterval(function () {
                                         delete heartbeatStoppedMsg._msgid;
                                         node.send(heartbeatStoppedMsg);
@@ -1325,7 +1342,12 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     default:
                         break;
                 }
-                if (msg.payload) {
+                if (typeof msg.payload === "string") {
+                    if (node.payloadFormat === "UPPER_CASE") {
+                        msg.payload = msg.payload.toUpperCase();
+                    } else if (node.payloadFormat === "LOWER_CASE") {
+                        msg.payload = msg.payload.toLowerCase()
+                    }
                     node.send(msg);
                 }
             }
