@@ -622,22 +622,25 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.name = n.name;
         this.devices = RED.nodes.getNode(n.deviceList).devices || [];
         this.ignoreUnmatched = n.ignoreUnmatched || false;
+        this.squelchLevel = parseInt(n.squelchLevel) || 0;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
         this.lighting4Handler = function (evt) {
-            let msg = {status: {rssi: evt.rssi}};
-            let db = node.devices.filter(function (entry) {return parseInt(entry.rawData) === parseInt(evt.data)});
-            if (db.length === 0) {
-                if (node.ignoreUnmatched === false) {
-                    msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
-                    node.send(msg);
-                }
-            } else {
-                if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
-                    msg.topic = db[0].device.join("/");
-                    msg.payload = db[0].payload;
-                    node.send(msg);
+            if (evt.rssi > node.squelchLevel) {
+                let msg = {status: {rssi: evt.rssi}};
+                let db = node.devices.filter(function (entry) {return parseInt(entry.rawData) === parseInt(evt.data)});
+                if (db.length === 0) {
+                    if (node.ignoreUnmatched === false) {
+                        msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
+                        node.send(msg);
+                    }
+                } else {
+                    if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
+                        msg.topic = db[0].device.join("/");
+                        msg.payload = db[0].payload;
+                        node.send(msg);
+                    }
                 }
             }
         };
