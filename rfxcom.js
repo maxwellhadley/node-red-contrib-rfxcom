@@ -1749,8 +1749,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     return "-";
                 }
             }
-            if (speedRange === [1, 3]){
-                if (/lo/i.test(payload)) {
+            if (speedRange[0] === 1 && speedRange[1] === 3){
+                    if (/lo/i.test(payload)) {
                     return 1;
                 } else if(/med/i.test(payload)) {
                     return 2;
@@ -1758,8 +1758,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     return 3;
                 }
             }
-            if (speedRange === [1, 4]) {
-                if (/ful/i.test(payload)) {
+            if (speedRange[0] === 1 && speedRange[1] === 4){
+                    if (/ful/i.test(payload)) {
                     return 4;
                 }
             }
