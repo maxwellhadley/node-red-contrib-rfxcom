@@ -272,6 +272,21 @@ module.exports = function (RED) {
            }
        };
 
+// Format payload text based on the node setting. Must be called from a node object context
+    const sendFormatted = function (msg) {
+        if (this) {
+            if (typeof msg.payload === "string") {
+                if (this.payloadFormat === "UPPER_CASE") {
+                    msg.payload = msg.payload.toUpperCase();
+                } else if (this.payloadFormat === "LOWER_CASE") {
+                    msg.payload = msg.payload.toLowerCase()
+                }
+            }
+            this.send(msg);
+        };
+    };
+
+
 // The config node holding the PT2262 deviceList object
 function RfxPT2262DeviceList(n) {
     RED.nodes.createNode(this, n);
@@ -303,16 +318,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
-        this.sendFormatted = function (msg) {
-            if (typeof msg.payload === "string") {
-                if (node.payloadFormat === "UPPER_CASE") {
-                    msg.payload = msg.payload.toUpperCase();
-                } else if (node.payloadFormat === "LOWER_CASE") {
-                    msg.payload = msg.payload.toLowerCase()
-                }
-            }
-            node.send(msg);
-        };
+        this.sendFormatted = sendFormatted;
         this.lighting1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.lighting1[evt.subtype] || "LIGHTING1_UNKNOWN") + "/" + evt.houseCode;
@@ -1194,6 +1200,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = sendFormatted;
         node.heartbeats = {};
         node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone silent
         node.HEARTBEATDELAY[rfxcom.security1.X10_DOOR] = 90;
@@ -1342,14 +1349,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     default:
                         break;
                 }
-                if (typeof msg.payload === "string") {
-                    if (node.payloadFormat === "UPPER_CASE") {
-                        msg.payload = msg.payload.toUpperCase();
-                    } else if (node.payloadFormat === "LOWER_CASE") {
-                        msg.payload = msg.payload.toLowerCase()
-                    }
-                    node.send(msg);
-                }
+                node.sendFormatted(msg);
             }
         };
 
@@ -2462,10 +2462,12 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         this.port = n.port;
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = sendFormatted;
         this.blinds1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.blinds1[evt.subtype] || "BLINDS_UNKNOWN") + "/" + evt.id;
@@ -2475,7 +2477,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.payload = evt.command;
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting5Handler = function (evt) {
@@ -2488,7 +2490,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         case 14:
                         case 15:
                             msg.payload = evt.command;
-                            node.send(msg);
+                            node.sendFormatted(msg);
                             break;
 
                         default:

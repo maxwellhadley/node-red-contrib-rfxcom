@@ -1,5 +1,5 @@
 <!--
-    Copyright (c) 2014 .. 2019, Maxwell Hadley
+    Copyright (c) 2014 .. 2023, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -566,6 +566,14 @@ Supported device types are:
         <label for="node-input-topic"></label>
         <input type="text" id="node-input-topic" placeholder="protocol/device address">
     </div>
+    <div class="form-row node-input-payload-format">
+        <label for="node-input-payloadFormat"><i class="fa fa-font"></i> Payload</label>
+        <select id="node-input-payloadFormat" style="width:70% !important">
+          <option value="TITLE_CASE">format payload text in Title Case</option>
+          <option value="UPPER_CASE">format payload text in UPPER CASE</option>
+          <option value="LOWER_CASE">format payload text in lower case</option>
+        </select>
+    </div>
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -594,7 +602,8 @@ matching a topic template. For example, the address above would be matched by 'B
 </p>
 <p>
 The most common commands are 'Open', 'Close', and 'Stop'. Some types have a few others, including 'Confirm' used when
-pairing a remote.
+pairing a remote. For optimum compatibility with other nodes, the payload text can be formatted in <i>Title Case</i>,
+<i>UPPER CASE</i> or <i>lower case</i>.
 </p>
 </script>
 
@@ -608,7 +617,8 @@ pairing a remote.
             topic: { value:"", validate:function (t) {
                     return this.topicSource == "all" || t.length > 0
                 }
-            }
+            },
+            payloadFormat: {value: "TITLE_CASE", required:true}
         },
         color:"BurlyWood",
         inputs:0,
@@ -1672,7 +1682,7 @@ rfx-PT2262-out nodes, or different nodes may use different lists.
     <div class="form-row node-input-row-ignoreUnmatched">
         <label for="node-input-ignoreUnmatched">&nbsp;</label>
         <input type="checkbox" id="node-input-ignoreUnmatched" style="display:inline-block; width:15px; vertical-align:baseline;">
-        <span>Ignore messages from unknown devices</span>
+        <span>Ignore messages from unrecognised devices</span>
     </div>
     <div class="form-row node-input-squelchLevel">
         <label for="node-input-squelchLevel"><i class="fa fa-signal"></i> RSSI</label>
@@ -1700,7 +1710,7 @@ Listens for messages from PT2262 devices using an RFXtrx433 transceiver
 <p>
 Attempts to translate the received raw data to a message topic (corresponding to a device address) and payload as
 specified by a matching entry the configured list of Devices. If no matching entry is found, and "Ignore messages
-from unknown devices" is not checked, the received data & pulse width are provided in the 'raw' property of the
+from unrecognised devices" is not checked, the received data & pulse width are provided in the 'raw' property of the
 message, which will have no topic or payload.
 If multiple matches are found, the first in the list will be used to set the topic & payload.
 The message also has a 'status' property indicating the received the signal strength (rssi).
