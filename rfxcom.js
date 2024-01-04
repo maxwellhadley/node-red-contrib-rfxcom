@@ -272,6 +272,21 @@ module.exports = function (RED) {
            }
        };
 
+// Format payload text based on the node setting. Must be called from a node object context
+    const sendFormatted = function (msg) {
+        if (this) {
+            if (typeof msg.payload === "string") {
+                if (this.payloadFormat === "UPPER_CASE") {
+                    msg.payload = msg.payload.toUpperCase();
+                } else if (this.payloadFormat === "LOWER_CASE") {
+                    msg.payload = msg.payload.toLowerCase()
+                }
+            }
+            this.send(msg);
+        };
+    };
+
+
 // The config node holding the PT2262 deviceList object
 function RfxPT2262DeviceList(n) {
     RED.nodes.createNode(this, n);
@@ -298,10 +313,12 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.port = n.port;
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = sendFormatted;
         this.lighting1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.lighting1[evt.subtype] || "LIGHTING1_UNKNOWN") + "/" + evt.houseCode;
@@ -337,7 +354,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting1 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting2Handler = function (evt) {
@@ -369,7 +386,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting2 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting5Handler = function (evt) {
@@ -476,7 +493,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                     default:
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting6Handler = function (evt) {
@@ -503,7 +520,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.warn("rfx-lights-in: unrecognised Lighting6 command " + evt.commandNumber.toString(16));
                         return;
                 }
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.security1Handler = function (evt) {
@@ -536,7 +553,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
                 }
                 if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                    node.send(msg);
+                    node.sendFormatted(msg);
                 }
             }
         };
@@ -554,7 +571,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
                 }
                 if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                    node.send(msg);
+                    node.sendFormatted(msg);
                 }
             }
         };
@@ -579,7 +596,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
 
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         if (node.rfxtrxPort) {
@@ -621,23 +638,28 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.topic = stringToParts(n.topic);
         this.name = n.name;
         this.devices = RED.nodes.getNode(n.deviceList).devices || [];
+        this.ignoreUnmatched = n.ignoreUnmatched || false;
+        this.squelchLevel = parseInt(n.squelchLevel) || 0;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
         this.lighting4Handler = function (evt) {
-            let msg = {status: {rssi: evt.rssi}};
-            let db = node.devices.filter(function (entry) {return parseInt(entry.rawData) === parseInt(evt.data)});
-            if (db.length === 0) {
-                msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
-            } else {
-                if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
-                    msg.topic = db[0].device.join("/");
-                    msg.payload = db[0].payload;
+            if (evt.rssi > node.squelchLevel) {
+                let msg = {status: {rssi: evt.rssi}};
+                let db = node.devices.filter(function (entry) {return parseInt(entry.rawData) === parseInt(evt.data)});
+                if (db.length === 0) {
+                    if (node.ignoreUnmatched === false) {
+                        msg.raw = {data: evt.data, pulseWidth: evt.pulseWidth};
+                        node.send(msg);
+                    }
                 } else {
-                    return;
+                    if (node.topicSource === "all" || checkTopic(db[0].device, node.topic)) {
+                        msg.topic = db[0].device.join("/");
+                        msg.payload = db[0].payload;
+                        node.send(msg);
+                    }
                 }
             }
-            node.send(msg);
         };
 
         if (node.rfxtrxPort) {
@@ -1173,10 +1195,12 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
         this.outputHeartbeats = n.outputHeartbeats || false;
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = sendFormatted;
         node.heartbeats = {};
         node.HEARTBEATDELAY = []; // delay in minutes before declaring a detector has gone silent
         node.HEARTBEATDELAY[rfxcom.security1.X10_DOOR] = 90;
@@ -1284,6 +1308,11 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                                         lastMessageTimestamp: Date.now(),
                                         lastHeardFrom:        new Date().toUTCString()
                                     };
+                                    if (node.payloadFormat === "UPPER_CASE") {
+                                        heartbeatStoppedMsg.payload = heartbeatStoppedMsg.payload.toUpperCase();
+                                    } else if (node.payloadFormat === "LOWER_CASE") {
+                                        heartbeatStoppedMsg.payload = heartbeatStoppedMsg.payload.toLowerCase()
+                                    }
                                     return setInterval(function () {
                                         delete heartbeatStoppedMsg._msgid;
                                         node.send(heartbeatStoppedMsg);
@@ -1320,9 +1349,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     default:
                         break;
                 }
-                if (msg.payload) {
-                    node.send(msg);
-                }
+                node.sendFormatted(msg);
             }
         };
 
@@ -1722,8 +1749,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     return "-";
                 }
             }
-            if (speedRange === [1, 3]){
-                if (/lo/i.test(payload)) {
+            if (speedRange[0] === 1 && speedRange[1] === 3){
+                    if (/lo/i.test(payload)) {
                     return 1;
                 } else if(/med/i.test(payload)) {
                     return 2;
@@ -1731,8 +1758,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     return 3;
                 }
             }
-            if (speedRange === [1, 4]) {
-                if (/ful/i.test(payload)) {
+            if (speedRange[0] === 1 && speedRange[1] === 4){
+                    if (/ful/i.test(payload)) {
                     return 4;
                 }
             }
@@ -2435,10 +2462,12 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         this.port = n.port;
         this.topicSource = n.topicSource;
         this.topic = normaliseTopic(n.topic);
+        this.payloadFormat = n.payloadFormat || "TITLE_CASE";
         this.name = n.name;
         this.rfxtrxPort = RED.nodes.getNode(this.port);
 
         const node = this;
+        this.sendFormatted = sendFormatted;
         this.blinds1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.blinds1[evt.subtype] || "BLINDS_UNKNOWN") + "/" + evt.id;
@@ -2448,7 +2477,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
             }
             if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
                 msg.payload = evt.command;
-                node.send(msg);
+                node.sendFormatted(msg);
             }
         };
         this.lighting5Handler = function (evt) {
@@ -2461,7 +2490,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         case 14:
                         case 15:
                             msg.payload = evt.command;
-                            node.send(msg);
+                            node.sendFormatted(msg);
                             break;
 
                         default:
