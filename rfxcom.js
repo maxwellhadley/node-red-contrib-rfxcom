@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2014 .. 2019, Maxwell Hadley
+    Copyright (c) 2014 .. 2024, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -871,7 +871,6 @@ function RfxRawOutNode(n) {
                             // function context, where the function lastCommand() can find them
                             topic = topic.join("/");
                             lastCommand = (function () {
-                                // let _rawData = rawData, _pulseWidth = repeats, key = topic;
                                 let _params = params, key = topic;
                                 return function () {
                                     node.rfxtrx.transmitters['RAW'].sendMessage(null, _params);
@@ -2536,7 +2535,9 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         // Convert the message payload to the appropriate command, depending on the protocol name (subype)
         const parseCommand = function (protocolName, address, payload) {
             if (/open/i.test(payload) || payload > 0) {
-                if (protocolName === "BLINDS_T5") {
+                if (protocolName === "BLINDS_T19") {
+                    node.rfxtrx.transmitters[protocolName].intermediatePosition(address, 90);
+                } else if (protocolName === "BLINDS_T5") {
                     node.rfxtrx.transmitters[protocolName].down(address);
                 } else if (node.rfxtrx.transmitters[protocolName].packetType === "rfy") {
                     node.rfxtrx.transmitters[protocolName].venetianOpen(address);
@@ -2546,7 +2547,10 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     node.rfxtrx.transmitters[protocolName].open(address);
                 }
             } else if (/close/i.test(payload) || payload < 0) {
-                if (protocolName === "BLINDS_T5") {
+                if (protocolName === "BLINDS_T19") {
+                    const direction = /ccw|acw|count|anti/i.test(payload) ? "CCW" : "CW";
+                    node.rfxtrx.transmitters[protocolName].close(address, direction);
+                } else if (protocolName === "BLINDS_T5") {
                     node.rfxtrx.transmitters[protocolName].up(address);
                 } else if (node.rfxtrx.transmitters[protocolName].packetType === "rfy") {
                     node.rfxtrx.transmitters[protocolName].venetianClose(address);
@@ -2570,20 +2574,84 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     node.rfxtrx.transmitters[protocolName].confirm(address);
                 }
             } else if (/inter|pos/i.test(payload)) {
-                let position = 2;
+                let position = NaN;
                 const match = /[0-9]+(\.[0-9]*)?/.exec(payload);
                 if (match !== null) {
                     position = parseFloat(match[0]);
                 }
                 if (isNaN(position)) {
-                    position = 2;
-                } else {
-                    node.rfxtrx.transmitters[protocolName].intermediatePosition(address, position);
+                    node.warn((node.name || "rfx-blinds-out") + ": no position found in '" + payload + "'");
+                    if (protocolName === "BLINDS_T19") {
+                        position = 90;
+                    } else {
+                        position = 2;
+                    }                    
                 }
+                node.rfxtrx.transmitters[protocolName].intermediatePosition(address, position);
             } else if (/up/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].up(address);
             } else if (/down/i.test(payload)) {
                 node.rfxtrx.transmitters[protocolName].down(address);
+            } else if (protocolName === "BLINDS_T19" && /ang|deg|\u00B0/i.test(payload)) {
+                let angle = NaN;
+                const match = /[0-9]+(\.[0-9]*)?/.exec(payload);
+                if (match !== null) {
+                    angle = parseFloat(match[0]);
+                }
+                if (isNaN(angle)) {
+                    node.warn((node.name || "rfx-blinds-out") + ": no angle found in '" + payload + "'");
+                } else {
+                    angle = 45.0*Math.round(angle/45.0);
+                    if (angle <= 0.0) {
+                        node.rfxtrx.transmitters[protocolName].close(address, "CCW");
+                    } else if (angle >= 180) {
+                        node.rfxtrx.transmitters[protocolName].close(address, "CW");
+                    } else {
+                        node.rfxtrx.transmitters[protocolName].intermediatePosition(address, angle);
+                    }   
+                }
+            } else if (protocolName === "BREL_DOOYA" && /per|%|ang|deg|\u00B0/i.test(payload)) {
+                let startingPoint, match, numbers = [];
+                const values = /[+-]?[0-9]+(\.[0-9]*)?/g;
+                while (true) {
+                    startingPoint = values.lastIndex;
+                    match = values.exec(payload);
+                    if (match === null) {
+                        break;
+                    }
+                    numbers.push({prefix: match.input.slice(startingPoint, values.lastIndex - match[0].length),
+                        next: values.lastIndex, value: parseFloat(match[0])});
+                }
+                let failed = false;
+                if (numbers.length === 0 || numbers.length > 2) {
+                    failed = true;
+                } else if (numbers.length === 1) {
+                    if (/ang|deg|\u00B0/i.test(payload)) {
+                        node.rfxtrx.transmitters[protocolName].setAngle(address, numbers[0].value);
+                    } else if (/per|%/i.test(payload)) {
+                        node.rfxtrx.transmitters[protocolName].setPercent(address, numbers[0].value);
+                    } else {
+                        failed = true;
+                    }
+                } else {
+                    let suffix = payload.slice(numbers[numbers.length-1].next);
+                    if (/deg|\u00B0/i.test(suffix)) {
+                        node.rfxtrx.transmitters[protocolName].setPercentAndAngle(address, numbers[0].value, numbers[1].value);
+                    } else if (/per|%/i.test(suffix)) {
+                        node.rfxtrx.transmitters[protocolName].setPercentAndAngle(address, numbers[1].value, numbers[0].value);
+                    } else if (/ang/i.test(numbers[0].prefix)) {
+                        node.rfxtrx.transmitters[protocolName].setPercentAndAngle(address, numbers[1].value, numbers[0].value);
+                    } else if (/per/i.test(numbers[0].prefix)) {
+                        node.rfxtrx.transmitters[protocolName].setPercentAndAngle(address, numbers[0].value, numbers[1].value);
+                    } else {
+                        failed = true;
+                    }
+                }
+                if (failed) {
+                    node.warn((node.name || "rfx-blinds-out") + ": don't understand '" + payload + "'");
+                }
+
+
             } else if (/angle|turn/i.test(payload)) {
                 if (/increase|\+/i.test(payload)) {
                     node.rfxtrx.transmitters[protocolName].venetianIncreaseAngle(address);
@@ -2623,7 +2691,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     }
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                     if (protocolName === "BLINDS_T2" || protocolName === "BLINDS_T4" ||
-                        protocolName === "BLINDS_T5" || protocolName === "BLINDS_T10") {
+                        protocolName === "BLINDS_T5" || protocolName === "BLINDS_T10" ||
+                        protocolName === "BLINDS_T18") {
                         unitAddress = 0;
                         if (path.length > 2) {
                             node.warn((node.name || "rfx-blinds-out") + ": ignoring unit code");
@@ -2633,20 +2702,6 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         return;
                     } else {
                         unitAddress = parseUnitAddress(path[2]);
-                        if (protocolName === "BLINDS_T3") {
-                            if (unitAddress === 0) {
-                                unitAddress = 0x10;
-                            } else {
-                                unitAddress = unitAddress - 1;
-                            }
-                        }
-                        if (protocolName === "BLINDS_T12") {
-                            if (unitAddress === 0) {
-                                unitAddress = 0x0f;
-                            } else {
-                                unitAddress = unitAddress - 1;
-                            }
-                        }
                     }
                     deviceAddress = path.slice(1, 2);
                     try {
