@@ -863,6 +863,7 @@ function RfxRawOutNode(n) {
                      try {
                         // Send the command for the first time
                         let params = {pulseTimes: pulseTimes, repeats: repeats};
+                        // TODO - wrap this in a try {} block, and cancel the retransmit if it throws
                         node.rfxtrx.transmitters['RAW'].sendMessage(null, params);
                         // If we reach this point, the command did not throw an error. Check if should retransmit
                         // it & set the Timeout or Interval as appropriate
@@ -1351,6 +1352,16 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                 node.sendFormatted(msg);
             }
         };
+        this.activLinkHandler = function (evt) {
+            if (evt.subtype === rfxcom.activLink.ACTIV_LINK_PIR) {
+                let msg = {status: {rssi: evt.rssi}};
+                msg.topic = (rfxcom.activLink[evt.subtype] || "ACTIV_LINK_UNKNOWN") + "/" + evt.id;
+                if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                    msg.payload = "Motion";
+                    node.sendFormatted(msg);
+                }
+            }
+        };
 
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
@@ -1358,6 +1369,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                 showConnectionStatus(node);
                 node.on("close", function () {
                     node.rfxtrx.removeListener("security1", node.security1Handler);
+                    node.rfxtrx.removeListener("activlink", node.activLinkHandler);
                     let heartbeat = {};
                     for (heartbeat in node.heartbeats) {
                         if (node.heartbeats.hasOwnProperty(heartbeat)) {
@@ -1367,6 +1379,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     releasePort(node);
                 });
                 node.rfxtrx.on("security1", this.security1Handler)
+                node.rfxtrx.on("activlink", this.activLinkHandler);
             }
         }
     }
@@ -1955,6 +1968,16 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                 node.send(msg);
             }
         };
+        this.activLinkHandler = function (evt) {
+            let msg = {status: {rssi: evt.rssi}};
+            msg.topic = (rfxcom.activLink[evt.subtype] || "ACTIV_LINK_UNKNOWN") + "/" + evt.id;
+            if (evt.subtype === rfxcom.activLink.ACTIV_LINK_CHIME) {
+                if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                    msg.payload = {command: evt.command, alert: evt.alert};
+                    node.send(msg);
+                }
+            }
+        };
         if (node.rfxtrxPort) {
             node.rfxtrx = rfxcomPool.get(node, node.rfxtrxPort);
             if (node.rfxtrx !== null) {
@@ -1963,11 +1986,13 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     if (node.rfxtrx) {
                         node.rfxtrx.removeListener("lighting1", node.lighting1Handler);
                         node.rfxtrx.removeListener("chime1", node.chime1Handler);
+                        node.rfxtrx.removeListener("activlink", node.activLinkHandler);
                     }
                     releasePort(node);
                 });
                 node.rfxtrx.on("lighting1", this.lighting1Handler);
                 node.rfxtrx.on("chime1", this.chime1Handler);
+                node.rfxtrx.on("activlink", this.activLinkHandler);
             }
         } else {
             node.error("missing config: rfxtrx-port");
@@ -1990,12 +2015,39 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
         // Generate the chime command depending on the subtype and tone parameter, if any
         const parseCommand = function (protocolName, address, str) {
             let sound = NaN;
-            if (str !== undefined) {
-                sound = parseInt(str);
+            if (typeof str === "string") {
+                sound = parseInt(str.slice(str.search(/[0-9]+/)));
+            } else if (typeof str === "number") {
+                sound = str;
             }
             try {
                 if (protocolName === "BYRON_SX" && !isNaN(sound)) {
                     node.rfxtrx.transmitters[protocolName].chime(address, sound);
+                } else if (protocolName === "ACTIV_LINK_CHIME") {
+                    let knock = 0, alert = 0;
+                    if (!isNaN(sound)) {
+                        alert = sound;
+                    } else if (str && str.hasOwnProperty("alert")) {
+                        alert = str.alert;
+                    }
+                    if (str && str.hasOwnProperty("command")) {
+                        // Compare the value of command against the commandNames of the subtype
+                        // and return the index of the matching entry
+                        const packetType = node.rfxtrx.transmitters[protocolName].packetNumber,
+                              subtype = rfxcom.activLink[protocolName];
+                        for (knock = 0; true; knock++) {
+                            const commandName = rfxcom.commandName(packetType, subtype, knock);
+                            if (commandName === "Unknown") {
+                                node.warn((node.name || "rfx-doorbell-out ") + ": unrecognised command '" + str.command);
+                                return;
+                            }
+                            // Case-insensitive, 3 leading characters only, check for match
+                            if (commandName.slice(0, 3).toUpperCase() === str.command.slice(0, 3).toUpperCase()) {
+                                break;
+                            }
+                        }
+                    }
+                    node.rfxtrx.transmitters[protocolName].chime(address, knock, alert);
                 } else {
                     node.rfxtrx.transmitters[protocolName].chime(address);
                 }
@@ -2032,7 +2084,7 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         unitAddress = [];
                     }
                     try {
-                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "chime1"]);
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["lighting1", "chime1", "activLink"]);
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-doorbell-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
@@ -2343,6 +2395,37 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                         node.warn(exception);
                     }
                 }
+            } else if (/GAZCO_RF290A/i.test(protocolName)) {
+                let params = {mode: 0};
+                // The only essential object parameter is mode (default off), the rest are passed on if they exist
+                if (msg.payload.hasOwnProperty("mode")) {
+                    params.mode = msg.payload.mode;
+                    if (msg.payload.hasOwnProperty("flameBrightness")) {
+                        params.flameBrightness = msg.payload.flameBrightness.value;
+                    }
+                    if (msg.payload.hasOwnProperty("flameColour")) {
+                        params.flameColour = msg.payload.flameColour.value;
+                    }
+                    if (msg.payload.hasOwnProperty("fuelBrightness")) {
+                        params.fuelBrightness = msg.payload.fuelBrightness.value;
+                    }
+                    if (msg.payload.hasOwnProperty("fuelColour")) {
+                        params.fuelColour = msg.payload.fuelColour.value;
+                    }
+                } else if (/ON/i.test(command)) {
+                    // An ON command may have a percentage (50% or 100%).  A bare on is 100%
+                    if (!isNaN(percentage)) {
+                        params.mode = Math.round(percentage/50.0) + 2;
+                    } else {
+                        params.mode = 4;
+                    }
+                }
+                // Anything else is off
+                try {
+                    node.rfxtrx.transmitters[protocolName].sendMessage(address, params);
+                } catch (exception) {
+                    node.warn(exception);
+                }
             } else {
                 // Other device types don't accept object payloads, commands only
                 try {
@@ -2437,7 +2520,8 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                     protocolName = path[0].trim().replace(/ +/g, '_').toUpperCase();
                     deviceAddress = path.slice(1, 2);
                     try {
-                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["thermostat1", "thermostat2", "thermostat3", "thermostat4"]);
+                        subtype = getRfxcomSubtype(node.rfxtrx, protocolName, ["thermostat1", "thermostat2", "thermostat3",
+                                    "thermostat4", "thermostat5"]);
                         if (subtype < 0) {
                             node.warn((node.name || "rfx-heat-out ") + ": device type '" + protocolName + "' is not supported");
                         } else {
