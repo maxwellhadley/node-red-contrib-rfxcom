@@ -526,7 +526,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
         this.security1Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi, battery: evt.batteryLevel}};
             if (evt.subtype === 2) {
-                msg.topic = (rfxcom.security1[2]) + "/" + evt.id + "/";
+                msg.topic = (rfxcom.security1[2]) + "/" + evt.id;
                 switch (evt.deviceStatus) {
                     case 0x10:
                         msg.payload = "Off";
@@ -575,6 +575,22 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                 }
             }
         };
+        this.edisioHandler = function (evt) {
+            let msg = {status: {rssi: evt.rssi, battery: evt.batteryVoltage}};
+            msg.topic = (rfxcom.edisio[evt.subtype] || "EDISIO_UNKNOWN") + "/" + evt.id + "/" + evt.unitCode;
+            if (evt.commandNumber > 9) { // Ignore non-lighting commands
+                return;
+            }
+            msg.payload = evt.command;
+            if (msg.payload === "RGB") {
+                msg.colour = evt.colour;
+            } else if (msg.payload === "Set level") {
+                msg.payload = msg.payload + " " + evt.level + "%";
+            }
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                node.sendFormatted(msg);
+            }
+        };
         this.fanHandler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.fan[evt.subtype] || "FAN_UNKNOWN") + "/" + evt.id;
@@ -611,6 +627,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                         node.rfxtrx.removeListener("lighting6", node.lighting6Handler);
                         node.rfxtrx.removeListener("security1", node.security1Handler);
                         node.rfxtrx.removeListener("hunterfan", node.hunterFanHandler);
+                        node.rfxtrx.removeListener("edisio", this.edisioHandler);
                         node.rfxtrx.removeListener("fan", node.fanHandler);
                     }
                     releasePort(node);
@@ -621,6 +638,7 @@ RED.nodes.registerType("raw-device-list", RfxRawDeviceList);
                 node.rfxtrx.on("lighting6", this.lighting6Handler);
                 node.rfxtrx.on("security1", this.security1Handler);
                 node.rfxtrx.on("hunterfan", this.hunterFanHandler);
+                node.rfxtrx.on("edisio", this.edisioHandler);
                 node.rfxtrx.on("fan", this.fanHandler);
             }
         } else {
