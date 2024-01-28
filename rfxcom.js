@@ -2581,6 +2581,24 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                 node.sendFormatted(msg);
             }
         };
+        this.blinds2Handler = function (evt) {
+            let msg = {status: {rssi: evt.rssi, battery: evt.batteryLevel}};
+            msg.topic = (rfxcom.blinds2[evt.subtype] || "BLINDS2_UNKNOWN") + "/" + evt.id + "/" + evt.unitCode;
+            if (node.topicSource === "all" || normaliseAndCheckTopic(msg.topic, node.topic)) {
+                if (evt.commandNumber >= 0x07) {
+                    return;
+                } else if (evt.commandNumber < 0x04) {
+                    msg.payload = evt.command;
+                } else if (evt.commandNumber === 0x04) {
+                    msg.payload = "Set " + evt.percent.toString() + "%";
+                } else if (evt.commandNumber === 0x05) {
+                    msg.payload = "Set " + evt.angle.toString() + " deg";
+                } else {
+                    msg.payload = "Set " + evt.percent.toString() + "%, " + evt.angle.toString() + " deg";
+                }
+                node.sendFormatted(msg);
+            }
+        };
         this.lighting5Handler = function (evt) {
             let msg = {status: {rssi: evt.rssi}};
             msg.topic = (rfxcom.lighting5[evt.subtype] || "LIGHTING5_UNKNOWN") + "/" + evt.id;
@@ -2607,11 +2625,13 @@ RED.nodes.registerType("rfx-raw-out", RfxRawOutNode);
                 node.on("close", function () {
                     if (node.rfxtrx) {
                         node.rfxtrx.removeListener("blinds1", node.blinds1Handler);
+                        node.rfxtrx.removeListener("blinds2", node.blinds2Handler);
                         node.rfxtrx.removeListener("lighting5", node.lighting5Handler);
                     }
                     releasePort(node);
                 });
                 node.rfxtrx.on("blinds1", this.blinds1Handler);
+                node.rfxtrx.on("blinds2", this.blinds2Handler);
                 node.rfxtrx.on("lighting5", this.lighting5Handler);
             }
         } else {
