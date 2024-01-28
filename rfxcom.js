@@ -881,7 +881,6 @@ function RfxRawOutNode(n) {
                      try {
                         // Send the command for the first time
                         let params = {pulseTimes: pulseTimes, repeats: repeats};
-                        // TODO - wrap this in a try {} block, and cancel the retransmit if it throws
                         node.rfxtrx.transmitters['RAW'].sendMessage(null, params);
                         // If we reach this point, the command did not throw an error. Check if should retransmit
                         // it & set the Timeout or Interval as appropriate
