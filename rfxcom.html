@@ -1,5 +1,5 @@
 <!--
-    Copyright (c) 2014 .. 2023, Maxwell Hadley
+    Copyright (c) 2014 .. 2024, Maxwell Hadley
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -778,10 +778,20 @@ Supported device types are:
 <!-- Help text for rfx-doorbell-in -->
 <script type="text/x-red" data-help-name="rfx-doorbell-in">
 <p>
-Listens for commands from wireless doorbell pushes using an RFXtrx433 transceiver</p>
-<p>The output message topic is the 'address' of the bellpush; if a payload is present it is the tone number (0-15).
-Only BYRON_SX type bellpushes send a tone number; messages from other types have no payload.
-The message also has a status property indicating the received the signal strength (rssi).
+Listens for commands from wireless doorbell pushes using an RFXtrx433 transceiver
+</p>
+<p>
+    The output message topic is the 'address' of the bellpush; if a payload is present it gives information about the chime.
+For BYRON_SX type bellpushes the payload is a tone number (0-15).
+For ACTIV_LINK_CHIME bellpushes the payload is an object with properties:
+<table>
+    <tr><td><b>command</b></td><td>"Normal" or "Secret Knock"</td></tr>
+    <tr><td><b>alert</b></td><td>0 to 3</td></tr>
+</table>
+Messages from other types have no payload
+</p>
+<p>
+The message also has a status property indicating the received the signal strength (rssi) and battery wlevel where available.
 </p>
 <p>
 Addresses take the form '<b>type</b>/<b>device address</b>', where <b>type</b> is the name of the family
@@ -862,8 +872,14 @@ matching a topic template. For example, the address above would be matched by 'B
 Sends commands to wireless doorbell chimes using an RFXtrx433 transceiver
 </p>
 <p>The input message topic is the chime 'address'. Alternatively, the same device address can be used for all messages.
-A message payload, if present, is ignored unless sending to a chime of type BYRON_SX, when it is the (optional)
-tone number in the range 0 to 15.
+For most types, a message payload, if present, is ignored and it is always optional.
+For a chime of type BYRON_SX, the payload is the tone number in the range 0 to 15. In the absence of a payload, tone 5 is used.
+For a chime of type ACTIV_LINK_CHIME, the payload may be the alert code in the range 0 to 15, or an object with properties:
+<table>
+    <tr><td><b>command</b></td><td>"Normal" or "Secret Knock"</td></tr>
+    <tr><td><b>alert</b></td><td>0 to 3</td></tr>
+</table>
+In the absence of a payload, the default is a "Normal" chime with alert 0
 </p>
 <p>
 Addresses take the form '<b>type</b>/<b>device address</b>', where <b>type</b> is the name of the family
@@ -873,7 +889,7 @@ corresponding to the bellpush switches, where 1&nbsp;=&nbsp;switch on and 0&nbsp
 </p>
 Supported device types are:
 <ul>
-<li>ALFAWISE</li><li>ARC</li><li>BYRON_BY</li><li>BYRON_MP001</li><li>BYRON_SX</li><li>ENVIVO</li><li>SELECT_PLUS</li>
+<li>ACTIV_LINK_CHIME</li><li>ALFAWISE</li><li>ARC</li><li>BYRON_BY</li><li>BYRON_MP001</li><li>BYRON_SX</li><li>ENVIVO</li><li>SELECT_PLUS</li>
 </ul>
 </script>
 
@@ -1224,7 +1240,7 @@ tells a Maxitrol fire to increase or decrease the flame setting. Use "On 2"/"Off
 a Maxitrol G6R-H4TB, and "Run up"/"Run down"/"Stop" to control the modulating burner on G6R-H4T1 stoves.
 </p>
 <p>
-MCZ pellet stoves and Digimax thermostat receivers also accept object message payloads. For Digimax, the only object
+MCZ pellet stoves, Digimax thermostat receivers, and Gazco heaters also accept object message payloads. For Digimax, the only object
 parameter required is 'status' - 1 means demand is required (heating or cooling), 2 means no demand. The rfx-sensor node
 will receive Digimax thermostat units and generate messages containing objects compatible with this format.
 </p>
@@ -1242,12 +1258,23 @@ If any fan speed is 0, flamePower must be 1. The flamePower parameter is mandato
 are optional. Fan speeds default to 'auto' (6).
 </p>
 <p>
+The GAZCO_RF290A object format parameters are:
+</p>
+<table>
+<tr><td><b>mode</b></td><td>"Off", "LED", "Standby", "Low", "High" (case-insensitive, 3 characters needed) or a number in the range 0 to 4</td></tr>
+<tr><td><b>flameBrightness</b></td><td>0 to 5 (0 is off)</td></tr>
+<tr><td><b>flameColour</b></td><td>1 to 3</td></tr>
+<tr><td><b>fuelBrightness</b></td><td>0 to 5 (0 is off)</td></tr>
+<tr><td><b>fuelColour</b></td><td>1 to 13, or 14 to cycle</td></tr>
+</table>
+<p>
 Appropriate Alexa Node-RED Home Skill command messages are also accepted by all device types.
 </p>
 Supported device types are:
 <ul>
 <li>DIGIMAX_SHORT</li><li>DIGIMAX_TLX7506</li><li>G6R_H3T1</li><li>G6R_H4S</li><li>G6R_H4T1</li><li>G6R_H4TB</li><li>G6R_H4TD</li>
-<li>HE105</li><li>MCZ_PELLET_STOVE_1_FAN</li><li>MCZ_PELLET_STOVE_2_FAN</li><li>MCZ_PELLET_STOVE_3_FAN</li><li>RTS10_RFS10_TLX1206</li>
+<li>GAZCO_RF290A</li><li>HE105</li><li>MCZ_PELLET_STOVE_1_FAN</li><li>MCZ_PELLET_STOVE_2_FAN</li><li>MCZ_PELLET_STOVE_3_FAN</li><li>RTS10_RFS10_TLX1206</li>
+
 </ul>
 </script>
 
